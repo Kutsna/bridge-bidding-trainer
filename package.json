@@ -1,0 +1,9 @@
+{
+  "name": "bridge-bidding-app",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "tsx": "^4.21.0"
+  }
+}
