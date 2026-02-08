@@ -16,7 +16,7 @@ export const saycStaymanReplyRules: BiddingRule[] = [
       position: "rebidder",
     },
     explanation:
-      "Bid 2♥ to show a four-card heart suit after partner's Stayman inquiry.",
+      "Bid 2♥ to show a four-card heart suit after partner's Stayman (2C) inquiry.",
   },
 
   // 2♠ response: 4+ spades (no 4 hearts)
