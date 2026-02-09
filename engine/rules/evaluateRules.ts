@@ -12,6 +12,14 @@ export function ruleMatches(
 ): boolean {
   const c = rule.conditions;
 
+  if (c.auctionPattern) {
+    const pattern = c.auctionPattern;
+    const auctionTail = auction.auction.slice(-pattern.length);
+    if (auctionTail.join(",") !== pattern.join(",")) {
+      return false;
+    }
+  }
+
   if (c.minHcp !== undefined && hand.hcp < c.minHcp) return false;
   if (c.maxHcp !== undefined && hand.hcp > c.maxHcp) return false;
 

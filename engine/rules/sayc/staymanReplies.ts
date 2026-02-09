@@ -12,6 +12,7 @@ export const saycStaymanReplyRules: BiddingRule[] = [
     priority: 100,
     forcing: false,
     conditions: {
+      auctionPattern: ["1NT", "2C"],
       minSuitLength: { H: 4 },
       position: "rebidder",
     },
@@ -27,6 +28,7 @@ export const saycStaymanReplyRules: BiddingRule[] = [
     priority: 90,
     forcing: false,
     conditions: {
+      auctionPattern: ["1NT", "2C"],
       minSuitLength: { S: 4 },
       position: "rebidder",
     },
@@ -42,6 +44,7 @@ export const saycStaymanReplyRules: BiddingRule[] = [
     priority: 10,
     forcing: false,
     conditions: {
+      auctionPattern: ["1NT", "2C"],
       position: "rebidder",
     },
     explanation: "Bid 2♦ to deny holding a four-card major after Stayman.",

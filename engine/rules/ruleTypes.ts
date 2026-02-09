@@ -40,6 +40,11 @@ export interface BiddingRule {
 
   /** Conditions under which the rule applies */
   conditions: RuleCondition;
+  /**
+   * Exact auction pattern that must match the END of the auction.
+   * Example: ["1NT", "2C"]
+   */
+  auctionPattern?: string[];
 
   /** Human-readable explanation */
   explanation: string;
