@@ -1,3 +1,4 @@
+console.log("THIS IS BACKEND SERVER");
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";

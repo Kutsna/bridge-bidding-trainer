@@ -355,11 +355,20 @@ async function captureCards() {
   const formData = new FormData();
   formData.append("image", blob);
 
-  try {
+  /* try {
     const response = await fetch("/analyze-cards", {
       method: "POST",
       body: formData,
+    }); */
+
+    fetch("/analyze-cards", {
+      method: "POST",
+      body: formData
     });
+
+  app.get("/analyze-cards", (req, res) => {
+    res.status(405).json({ error: "Use POST method" });
+  });
 
     const data = await response.json();
 

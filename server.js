@@ -1,8 +1,13 @@
+console.log("THIS IS ROOT SERVER");
+console.log("PORT:", process.env.PORT);
+console.log("OPENAI KEY EXISTS:", !!process.env.OPENAI_API_KEY);
+
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 import express from "express";
 import multer from "multer";
 import OpenAI from "openai";
@@ -17,6 +22,9 @@ const openai = new OpenAI({
 // API endpoint
 app.post("/analyze-cards", upload.single("image"), async (req, res) => {
   try {
+    console.log("POST HIT");
+    console.log("FILE EXISTS:", !!req.file);
+
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
     }
@@ -24,7 +32,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
     const base64Image = req.file.buffer.toString("base64");
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini", // safer test model
       messages: [
         {
           role: "user",
@@ -32,16 +40,10 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
             {
               type: "text",
               text: `
-You are analyzing a fan of 13 playing cards.
-
 Return ONLY JSON:
 {
   "cards": ["AS","KH","7D"]
 }
-
-Ranks: A,K,Q,J,T,9,8,7,6,5,4,3,2
-Suits: S,H,D,C
-No explanation.
 `,
             },
             {
@@ -56,28 +58,30 @@ No explanation.
       temperature: 0,
     });
 
-    console.log("Sending response to frontend...");
+    const content = response?.choices?.[0]?.message?.content;
 
-    res.json({
-      result: response?.choices?.[0]?.message?.content || null,
-    });
+    if (!content) {
+      return res.status(500).json({ error: "Empty OpenAI response" });
+    }
+
+    // Ensure valid JSON
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      return res.status(500).json({
+        error: "OpenAI did not return valid JSON",
+        raw: content,
+      });
+    }
+
+    return res.json(parsed);
+
   } catch (err) {
     console.error("VISION ERROR:", err);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Vision failed",
       details: String(err),
     });
   }
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.use(express.static(path.join(__dirname, "dist")));
-
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'dist/index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
 });
