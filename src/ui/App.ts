@@ -356,7 +356,7 @@ async function captureCards() {
   formData.append("image", blob);
 
   try {
-    const response = await fetch("http://localhost:3001/analyze-cards", {
+    const response = await fetch("/analyze-cards", {
       method: "POST",
       body: formData,
     });
@@ -382,9 +382,9 @@ async function captureCards() {
     }));
 
     renderUI();
-  } catch (err) {
-    console.error(err);
-    alert("API call failed");
+  } catch (err: any) {
+    console.error("FULL API ERROR:", err);
+    alert("API call failed: " + err?.message);
   }
 
   // Turn off torch safely
@@ -896,7 +896,9 @@ function renderHand(hand: any[]) {
 </span>
 ${
   bySuit[s].length
-    ? bySuit[s].map((c) => `
+    ? bySuit[s]
+        .map(
+          (c) => `
       <span style="
         margin-right:1px;
         text-shadow:
@@ -907,7 +909,9 @@ ${
       ">
         ${c.rank}
       </span>
-    `).join("")
+    `,
+        )
+        .join("")
     : "-"
 }
           </div>`,
@@ -1149,7 +1153,7 @@ function recommend() {
   const facts = computeHandFacts(selectedHand);
   const rec = recommendBid(rules, facts, auctionState);
 
-    document.getElementById("output")!.innerHTML = rec
+  document.getElementById("output")!.innerHTML = rec
     ? `
         <div style="font-size:120px;color:yellow;font-weight:bold;">
   ${rec.bid}
@@ -1158,7 +1162,8 @@ function recommend() {
           ${rec.explanation}
         </div>
      </div>`
-  : `<div>No SAYC rule matched.</div>`; `<b>No SAYC rule matched.</b>
+    : `<div>No SAYC rule matched.</div>`;
+  `<b>No SAYC rule matched.</b>
        <br/>Opening=${isOpening}
        <br/>HCP=${facts.hcp}`;
 }
@@ -1166,7 +1171,8 @@ function recommend() {
 /* =========================================================
    UI + EXPORTS
 ========================================================= */
-document.body.style.background = "radial-gradient(circle at center, #1f7a3a 0%, #0b5d2a 60%, #083d1f 100%)";
+document.body.style.background =
+  "radial-gradient(circle at center, #1f7a3a 0%, #0b5d2a 60%, #083d1f 100%)";
 document.body.style.minHeight = "100vh";
 document.body.style.margin = "0";
 document.body.style.color = "white";

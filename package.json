@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.16.0",
+    "express": "^5.2.1",
+    "multer": "^2.0.2",
+    "openai": "^6.22.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tsx": "^4.21.0",
