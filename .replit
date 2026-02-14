@@ -9,9 +9,11 @@ requiredFiles = [".replit", "replit.nix", "package.json", "package-lock.json"]
 channel = "stable-24_11"
 
 [deployment]
-run = ["node", "index.js"]
+run = ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "5000"]
 deploymentTarget = "autoscale"
 ignorePorts = false
+publicDir = "dist/public"
+build = ["npm", "run", "build"]
 
 [agent]
 expertMode = true

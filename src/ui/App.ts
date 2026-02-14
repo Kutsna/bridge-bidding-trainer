@@ -39,8 +39,25 @@ document.head.appendChild(opencvScript);
 ========================================================= */
 
 const ALL_RANKS = "AKQJT98765432".split("");
+const RANK_ORDER: Record<string, number> = {
+  A: 14,
+  K: 13,
+  Q: 12,
+  J: 11,
+  T: 10,
+  9: 9,
+  8: 8,
+  7: 7,
+  6: 6,
+  5: 5,
+  4: 4,
+  3: 3,
+  2: 2,
+};
 const ALL_SUITS = ["S", "H", "D", "C"] as const;
 const CARD_COUNT = 13;
+
+const FONT_SCALE = window.innerWidth < 768 ? 4 : 2;
 
 const SUIT_SYMBOLS = {
   S: { symbol: "♠", color: "black" },
@@ -150,6 +167,8 @@ type CornerBox = { x: number; y: number; w: number; h: number };
 //let selectedHand: { rank: string; suit: string }[] = [];
 let auction: string[] = [];
 
+let selectedLevel: string | null = null;
+
 let dealer: Seat = "S";
 let vulnerability: "NONE" | "NS" | "EW" | "BOTH" = "NONE";
 
@@ -168,17 +187,25 @@ async function openCamera() {
   if (cameraStream) return;
 
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-      },
-    });
+    // 1️⃣ Try environment camera first (phones)
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      });
+    } catch {
+      // 2️⃣ Fallback for PCs
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+      });
+    }
 
-    // 1️⃣ make video element exist
     cameraVisible = true;
     renderCameraArea();
 
-    // 2️⃣ now safely attach stream
     const video = document.getElementById("camera") as HTMLVideoElement | null;
     if (!video) {
       alert("Camera element not found");
@@ -187,9 +214,61 @@ async function openCamera() {
 
     video.srcObject = cameraStream;
 
-    video.onloadedmetadata = () => {};
+    video.onloadedmetadata = async () => {
+      video.play();
 
-    video.play();
+      // 🔦 Torch only if supported
+      const track = cameraStream!.getVideoTracks()[0] as any;
+
+      if (track && track.getCapabilities) {
+        const caps = track.getCapabilities();
+        if (caps.torch) {
+          try {
+            await track.applyConstraints({
+              advanced: [{ torch: true }],
+            });
+            console.log("Torch enabled");
+          } catch {
+            console.log("Torch not supported");
+          }
+        }
+      }
+
+      // 🟢 Draw guide overlay
+      const guide = document.getElementById("guide") as HTMLCanvasElement;
+      if (!guide) return;
+
+      guide.width = video.videoWidth;
+      guide.height = video.videoHeight;
+
+      const ctx = guide.getContext("2d")!;
+      ctx.clearRect(0, 0, guide.width, guide.height);
+
+      ctx.strokeStyle = "lime";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(
+        guide.width * 0.05,
+        guide.height * 0.05,
+        guide.width * 0.9,
+        guide.height * 0.9,
+      );
+
+      ctx.fillStyle = "white";
+      ctx.font = "bold 28px Arial";
+      ctx.textAlign = "center";
+
+      ctx.fillText(
+        "Fill the frame completely",
+        guide.width / 2,
+        guide.height * 0.08,
+      );
+
+      ctx.fillText(
+        "Tilt cards to avoid flash reflection",
+        guide.width / 2,
+        guide.height * 0.14,
+      );
+    };
   } catch (err) {
     console.error(err);
     alert("Camera not available.");
@@ -237,77 +316,93 @@ async function captureCards() {
   }
 
   const video = document.getElementById("camera") as HTMLVideoElement | null;
-  const canvas = document.getElementById(
-    "snapshot",
-  ) as HTMLCanvasElement | null;
-
-  if (!video || !canvas) {
-    alert("Video or snapshot canvas missing");
+  if (!video) {
+    alert("Video element not found");
     return;
   }
 
-  // wait until video has real size
   if (video.videoWidth === 0 || video.videoHeight === 0) {
     alert("Video not ready yet");
     return;
   }
 
-  // 1️⃣ draw full frame
+  // Create snapshot canvas inside cameraWrapper
+  let canvas = document.getElementById("snapshot") as HTMLCanvasElement | null;
+
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    canvas.id = "snapshot";
+    canvas.style.width = "100%";
+    canvas.style.maxWidth = "500px";
+    canvas.style.border = "3px solid red";
+    canvas.style.marginTop = "6px";
+
+    const wrapper = document.getElementById("cameraWrapper");
+    if (wrapper) wrapper.appendChild(canvas);
+  }
+
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
   const ctx = canvas.getContext("2d")!;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // 2️⃣ OpenCV detect upper-left corners
-  const corners = detectCardCornersOpenCV(canvas);
-  console.log("Corners found:", corners.length, corners);
+  // Convert to blob for backend
+  const blob: Blob = await new Promise((resolve) =>
+    canvas!.toBlob((b) => resolve(b!), "image/jpeg", 0.95),
+  );
 
-  // 3️⃣ draw + crop
-  selectedHand = [];
+  const formData = new FormData();
+  formData.append("image", blob);
 
-  ctx.strokeStyle = "lime";
-  ctx.lineWidth = 3;
+  try {
+    const response = await fetch("http://localhost:3001/analyze-cards", {
+      method: "POST",
+      body: formData,
+    });
 
-  for (const c of corners) {
-    ctx.strokeRect(c.x, c.y, c.w, c.h);
+    const data = await response.json();
 
-    const crop = document.createElement("canvas");
-    crop.width = c.w;
-    crop.height = c.h;
-
-    crop
-      .getContext("2d")!
-      .drawImage(canvas, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h);
-
-    const imageData = crop
-      .getContext("2d")!
-      .getImageData(0, 0, crop.width, crop.height);
-
-    const result = await recognizeCard(imageData);
-
-    if (result) {
-      const rank = result[0];
-      const suit = result[1];
-      selectedHand.push({ rank, suit });
+    if (!data.result) {
+      alert("Recognition failed");
+      return;
     }
+
+    const parsed = JSON.parse(data.result);
+
+    if (!parsed.cards || !Array.isArray(parsed.cards)) {
+      alert("Invalid response from API");
+      return;
+    }
+
+    // Fill selectedHand
+    selectedHand = parsed.cards.map((c: string) => ({
+      rank: c[0],
+      suit: c[1],
+    }));
+
+    renderUI();
+  } catch (err) {
+    console.error(err);
+    alert("API call failed");
   }
 
-  // 4️⃣ update UI
-  renderUI();
+  // Turn off torch safely
+  try {
+    const track = cameraStream.getVideoTracks()[0] as any;
+    if (track?.getCapabilities?.().torch) {
+      await track.applyConstraints({
+        advanced: [{ torch: false }],
+      });
+    }
+  } catch {}
 
-  // 5️⃣ force snapshot visibility
-  canvas.style.display = "block";
-  canvas.style.visibility = "visible";
-  canvas.style.opacity = "1";
-
-  // 6️⃣ stop camera
+  // Stop camera
   cameraStream.getTracks().forEach((t) => t.stop());
   cameraStream = null;
   cameraVisible = false;
 
-  console.log("📸 Snapshot captured:", canvas.width, canvas.height);
+  renderCameraArea();
 }
 
 function drawFanCornerGuides(canvas: HTMLCanvasElement) {
@@ -646,6 +741,19 @@ function renderCornerPreview(corners: HTMLCanvasElement[]) {
   });
 }
 
+function sortHandHighToLow(hand: { rank: string; suit: string }[]) {
+  return hand.sort((a, b) => {
+    // First sort by suit order S, H, D, C
+    const suitOrder = { S: 0, H: 1, D: 2, C: 3 };
+    if (suitOrder[a.suit] !== suitOrder[b.suit]) {
+      return suitOrder[a.suit] - suitOrder[b.suit];
+    }
+
+    // Then sort rank high → low
+    return RANK_ORDER[b.rank] - RANK_ORDER[a.rank];
+  });
+}
+
 function detectCardCornersOpenCV(canvas: HTMLCanvasElement) {
   if (!cvReady || !(window as any).cv) {
     console.warn("OpenCV not ready");
@@ -743,7 +851,7 @@ function renderHand(hand: any[]) {
             (c) => `
               <div style="border:1px solid #ccc;padding:4px;">
                 <img src="${c.image}"
-                     style="width:60px;height:auto;display:block;" />
+                     style="font-size:60px;font-weight:bold;color:${SUIT_SYMBOLS[s].color}" />
               </div>
             `,
           )
@@ -760,19 +868,55 @@ function renderHand(hand: any[]) {
     C: hand.filter((c) => c.suit === "C"),
   };
 
-  const hcp =
-    hand.length === 13 ? computeHandFacts(hand).hcp : `${hand.length}/13`;
+  const hcp = hand.reduce((sum, c) => {
+    if (c.rank === "A") return sum + 4;
+    if (c.rank === "K") return sum + 3;
+    if (c.rank === "Q") return sum + 2;
+    if (c.rank === "J") return sum + 1;
+    return sum;
+  }, 0);
+
+  // ✅ Card count only shown if not 13
+  const countLine =
+    hand.length < 13 ? `<div><b>Cards:</b> ${hand.length}/13</div>` : "";
 
   return `
     ${(["S", "H", "D", "C"] as const)
       .map(
         (s) =>
-          `<div style="font-size:26px;font-weight:bold;color:${SUIT_SYMBOLS[s].color}">
-            ${SUIT_SYMBOLS[s].symbol} ${bySuit[s].map((c) => c.rank).join(" ") || "-"}
+          `<div style="font-size:55px;font-weight:bold;color:${SUIT_SYMBOLS[s].color}">
+            <span style="
+  text-shadow:
+    -1px -1px 0 grey,
+           1px -1px 0 grey,
+          -1px  1px 0 grey,
+           1px  1px 0 grey;
+">
+  ${SUIT_SYMBOLS[s].symbol}
+</span>
+${
+  bySuit[s].length
+    ? bySuit[s].map((c) => `
+      <span style="
+        margin-right:1px;
+        text-shadow:
+          -1px -1px 0 grey,
+           1px -1px 0 grey,
+          -1px  1px 0 grey,
+           1px  1px 0 grey;
+      ">
+        ${c.rank}
+      </span>
+    `).join("")
+    : "-"
+}
           </div>`,
       )
       .join("")}
-    <div><b>HCP:</b> ${hcp}</div>
+    <div class="handStats"><b>HCP:</b> ${hcp}</div>
+<div class="handStats">
+  ${hand.length < 13 ? `<b>Cards:</b> ${hand.length}/13` : ""}
+</div>
   `;
 }
 
@@ -785,10 +929,23 @@ function renderDeck() {
       ${ALL_RANKS.map(
         (rank) =>
           `<span onclick="toggleCard({rank:'${rank}',suit:'${suit}'})"
-         style="display:inline-block;width:26px;margin:2px;
-         border:${selectedHand.some((c) => c.rank === rank && c.suit === suit) ? "2px solid green" : "1px solid #ccc"};
-         cursor:pointer;font-weight:bold;color:${SUIT_SYMBOLS[suit].color}">
-         ${rank}</span>`,
+  style="
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:56px;
+    height:56px;
+    margin:4px;
+    font-size:30px;
+    border-radius:8px;
+    border:${selectedHand.some((c) => c.rank === rank && c.suit === suit) ? "6px solid red" : "3px solid #ccc"};
+    cursor:pointer;
+    font-weight:bold;
+    background:#f8f8f8;
+    color:${SUIT_SYMBOLS[suit].color};
+  ">
+  ${rank}
+</span>`,
       ).join("")}
     </div>`,
     )
@@ -819,14 +976,96 @@ function renderAuctionTable() {
         .join("")}</tr>
       ${rows}
     </table>
-    <div>${auctionEnded() ? "Auction Ended" : `Turn: ${currentTurn()}`}</div>
+    <div>${auctionEnded() ? "Auction Ended" : `${currentTurn()} to bid: `}</div>
   `;
 }
 
 function renderBidButtons() {
-  return BID_OPTIONS.map(
-    (b) => `<button onclick="addBid('${b}')">${b}</button>`,
-  ).join("");
+  const levels = ["1", "2", "3", "4", "5", "6", "7"];
+  const suits = ["C", "D", "H", "S", "NT"];
+
+  const suitSymbols: Record<string, string> = {
+    C: "♣",
+    D: "♦",
+    H: "♥",
+    S: "♠",
+    NT: "NT",
+  };
+
+  const suitColors: Record<string, string> = {
+    C: "black",
+    D: "red",
+    H: "red",
+    S: "black",
+    NT: "black",
+  };
+
+  return `
+    <!-- P / X / XX -->
+<div style="margin-bottom:12px;">
+  ${["P", "X", "XX"]
+    .map(
+      (b) => `
+    <button 
+      onclick="addBid('${b}')"
+      style="
+        width:clamp(20px, 10vw, 80px);
+        height:clamp(20px, 10vw, 80px);
+        font-size:clamp(1rem, 3vw, 1.6rem);
+        font-weight:bold;
+        margin:4px;
+      ">
+      ${b}
+    </button>
+  `,
+    )
+    .join("")}
+</div>
+
+<!-- Levels -->
+<div style="margin-bottom:10px;">
+  ${levels
+    .map(
+      (l) => `
+    <button 
+  onclick="selectLevel('${l}')"
+  style="
+    width: clamp(20px, 12vw, 85px);
+    height: clamp(20px, 12vw, 85px);
+    font-size: clamp(0.8rem, 3vw, 2rem);
+    font-weight:bold;
+    margin:4px;
+    background:${selectedLevel === l ? "#d0ffd0" : "#eee"};
+  ">
+  ${l}
+</button>
+  `,
+    )
+    .join("")}
+</div>
+
+<!-- Suits -->
+<div>
+  ${suits
+    .map(
+      (s) => `
+    <button 
+      onclick="selectSuit('${s}')"
+      style="
+        width:clamp(30px, 10vw, 80px);
+        height:clamp(30px, 10vw, 80px);
+        font-size:clamp(1rem, 2.5vw, 1.8rem);
+        font-weight:bold;
+        margin:4px;
+        color:${suitColors[s]};
+      ">
+      ${suitSymbols[s]}
+    </button>
+  `,
+    )
+    .join("")}
+</div>
+  `;
 }
 
 function isVulnerableSeat(seat: Seat) {
@@ -846,6 +1085,23 @@ function addBid(bid: string) {
     auction.push(bid);
     renderUI();
   }
+}
+
+function selectLevel(level: string) {
+  selectedLevel = level;
+  renderUI();
+}
+
+function selectSuit(suit: string) {
+  if (!selectedLevel) {
+    alert("Select level first");
+    return;
+  }
+
+  const bid = selectedLevel + suit;
+  selectedLevel = null;
+
+  addBid(bid);
 }
 
 function undoBid() {
@@ -893,9 +1149,16 @@ function recommend() {
   const facts = computeHandFacts(selectedHand);
   const rec = recommendBid(rules, facts, auctionState);
 
-  document.getElementById("output")!.innerHTML = rec
-    ? `<b style="font-size:22px;color:green">${rec.bid}</b><br/>${rec.explanation}`
-    : `<b>No SAYC rule matched.</b>
+    document.getElementById("output")!.innerHTML = rec
+    ? `
+        <div style="font-size:120px;color:yellow;font-weight:bold;">
+  ${rec.bid}
+        </div>
+        <div style="font-size:40px;line-height:1;">
+          ${rec.explanation}
+        </div>
+     </div>`
+  : `<div>No SAYC rule matched.</div>`; `<b>No SAYC rule matched.</b>
        <br/>Opening=${isOpening}
        <br/>HCP=${facts.hcp}`;
 }
@@ -903,8 +1166,110 @@ function recommend() {
 /* =========================================================
    UI + EXPORTS
 ========================================================= */
+document.body.style.background = "radial-gradient(circle at center, #1f7a3a 0%, #0b5d2a 60%, #083d1f 100%)";
+document.body.style.minHeight = "100vh";
+document.body.style.margin = "0";
+document.body.style.color = "white";
 
 document.body.innerHTML = `
+<!-- Table -->
+<style>
+  /* PC */
+  #auctionTable table {
+    font-size: 200%;
+  }
+
+  /* Phone */
+  @media (max-width: 768px) {
+    #auctionTable table {
+      font-size: 700%;
+    }
+  }
+</style>
+
+
+<!-- Header  -->
+<style> 
+  h2 {
+    font-size: 300%;
+  }
+
+  /* Phones */
+  @media (max-width: 768px) {
+    h2 {
+      font-size: 400%;
+    }
+  }
+</style>
+
+<style>
+  .handStats {
+    font-size: 200%;
+  }
+</style>
+
+
+<style>
+  h3 {
+    font-size: 200%;
+  }
+
+  /* Phones */
+  @media (max-width: 768px) {
+    h3 {
+      font-size: 500%;
+    }
+  }
+</style>
+
+
+<!-- DropDowns -->
+<style>
+  /* PC */
+  select {
+    font-size: 200%;
+  }
+
+  /* Phone */
+  @media (max-width: 768px) {
+    select {
+      font-size: 700%;
+    }
+  }
+</style>
+
+
+<!-- Auction -->
+<style>
+  button {
+    font-size: 200%;
+  }
+
+  /* Phones */
+  @media (max-width: 1080px) {
+    button {
+      font-size: 300%;
+    }
+  }
+</style>
+
+
+<style>
+  /* PC */
+  #bidButtons button {
+    font-size: 150%;
+    padding: 12px 10px;
+  }
+
+  /* Phone */
+  @media (max-width: 1080px) {
+    #bidButtons button {
+      font-size: 300%;
+      padding: 20px 30px;
+    }
+  }
+</style>
+
 <h2>Bridge Bidding Trainer (SAYC)</h2>
 
 <!-- CAMERA -->
@@ -914,42 +1279,55 @@ document.body.innerHTML = `
      style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
 </div>
 
-<!-- MAIN ROW -->
-<div style="display:flex;gap:16px;flex-wrap:wrap;">
+<!-- ================= ROW 1 ================= -->
+<div style="margin-bottom:24px;">
+  <h2 style="margin-bottom:12px;">Select / Correct Your Hand</h2>
+  <div id="deck"></div>
+</div>
 
-  <div style="flex:1;min-width:260px;">
-    <h3>Select Your Hand</h3>
-    <div id="deck"></div>
-  </div>
+<!-- ================= ROW 2 ================= -->
+<div style="display:flex;gap:40px;flex-wrap:wrap;margin-bottom:32px;">
 
-  <div style="flex:1;min-width:260px;">
-    <h3>Your Hand</h3>
+  <!-- Your Hand -->
+  <div style="flex:1;min-width:300px;">
+    <h2>Your Hand</h2>
     <div id="handView"></div>
   </div>
 
-  <div style="flex:1;min-width:260px;">
-    <h3>Auction</h3>
+  <!-- Auction Buttons -->
+  <div style="flex:1;min-width:300px;">
+    <h2>Auction</h2>
+    <div id="bidButtons" style="margin-top:12px;"></div>
     <div id="auctionTable"></div>
-    <div id="bidButtons"></div>
   </div>
 
-  <div style="flex:1;min-width:200px;">
-    <h3>Dealer</h3>
-    <select id="dealer">
+</div>
+
+<!-- ================= ROW 3 ================= -->
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;">
+
+  <!-- Dealer -->
+  <div>
+    <h2>Dealer</h2>
+    <select id="dealer" style="font-size:1.4em;padding:12px 20px;">
       <option value="W">West</option>
       <option value="N">North</option>
       <option value="E">East</option>
       <option value="S" selected>South</option>
     </select>
+  </div>
 
-    <h3>Vulnerability</h3>
-    <select id="vuln">
+  <!-- Vulnerability -->
+  <div>
+    <h2>Vulnerability</h2>
+    <select id="vuln" style="font-size:1.4em;padding:12px 20px;">
       <option value="NONE">None</option>
       <option value="NS">NS</option>
       <option value="EW">EW</option>
       <option value="BOTH">Both</option>
     </select>
   </div>
+
 </div>
 
 <br/>
@@ -959,7 +1337,7 @@ document.body.innerHTML = `
 <button onclick="resetHand()">Clear Hand</button>
 <button onclick="recommend()">Recommend Bid</button>
 
-<pre id="output"></pre>
+<div id="output"></div>
 `;
 
 (window as any).toggleCard = toggleCard;
@@ -972,9 +1350,12 @@ document.body.innerHTML = `
 (window as any).captureFrame = captureFrame;
 (window as any).openCamera = openCamera;
 (window as any).captureCards = captureCards;
+(window as any).selectLevel = selectLevel;
+(window as any).selectSuit = selectSuit;
 
 function renderUI() {
   document.getElementById("deck")!.innerHTML = renderDeck();
+  sortHandHighToLow(selectedHand);
   document.getElementById("handView")!.innerHTML = renderHand(selectedHand);
   document.getElementById("auctionTable")!.innerHTML = renderAuctionTable();
   document.getElementById("bidButtons")!.innerHTML = renderBidButtons();
@@ -1005,31 +1386,40 @@ function renderCameraArea() {
   const el = document.getElementById("cameraArea");
   if (!el) return;
 
+  if (!cameraVisible) {
+    el.innerHTML = `
+      <button onclick="openCamera()">Open Camera to Capture Cards</button>
+      <div id="cameraWrapper"></div>
+    `;
+    return;
+  }
+
   el.innerHTML = `
-    <button onclick="${cameraVisible ? "captureCards()" : "openCamera()"}">
-      ${cameraVisible ? "Capture Cards" : "Open Camera"}
-    </button>
+    <div id="cameraWrapper"
+         style="position:relative;width:100%;max-width:500px;">
 
-    ${
-      cameraVisible
-        ? `<div style="position:relative;width:100%;max-width:500px;">
-  <video id="camera" autoplay muted playsinline
-    style="width:100%;"></video>
+      <video id="camera"
+             autoplay muted playsinline
+             style="width:100%;object-fit:cover;">
+      </video>
 
-  <canvas id="guide"
-    style="position:absolute;top:0;left:0;width:100%;height:100%;
-           pointer-events:none;"></canvas>
-</div>`
-        : ""
-    }
+      <button onclick="captureCards()"
+              style="
+                position:absolute;
+                bottom:12px;
+                right:12px;
+                padding:10px 16px;
+                font-size:16px;
+                font-weight:bold;
+                background:#2196f3;
+                color:white;
+                border:none;
+                border-radius:6px;
+                cursor:pointer;">
+        Capture Cards
+      </button>
 
-    <canvas id="snapshot"
-  style="display:block;
-         visibility:visible;
-         width:100%;
-         max-width:420px;
-         border:3px solid red;
-         margin-top:6px;"></canvas>
+    </div>
   `;
 }
 

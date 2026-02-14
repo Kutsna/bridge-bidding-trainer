@@ -1,4 +1,4 @@
-const express = require("express");
+import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
@@ -8,15 +8,6 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
-
-app.get("/", (req, res) => {
-  res.send("Backend is running");
-});
-
-app.listen(3001, () => {
-  console.log("Server running on port 3001");
-});
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -24,7 +15,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-app.post("/analyze-cards", upload.single("image"), async (req, res) => {
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
+
+app.post("/analyze-card", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
@@ -33,7 +28,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
     const base64Image = req.file.buffer.toString("base64");
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.mini",
       messages: [
         {
           role: "user",
@@ -41,18 +36,19 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
             {
               type: "text",
               text: `
-You are analyzing a fan of playing cards.
+You are reading a single playing card corner.
 
-Return ONLY strict JSON in this format:
+Return ONLY JSON:
 {
-  "cards": ["AS", "KH", "7D"]
+  "card": "AS"
 }
 
 Rules:
-- Use ranks: A,K,Q,J,T,9,8,7,6,5,4,3,2
-- Use suits: S,H,D,C
-- No extra text.
-              `,
+- Ranks: A,K,Q,J,T,9,8,7,6,5,4,3,2
+- Suits: S,H,D,C
+- Diamonds = D
+- No explanation.
+`,
             },
             {
               type: "image_url",
@@ -66,15 +62,15 @@ Rules:
       temperature: 0,
     });
 
-    const content = response.choices[0].message.content;
+    const result = response.choices[0].message.content;
 
-    res.json({ result: content });
-  } catch (err) {
-    console.error(err);
+    res.json({ result });
+  } catch (error) {
+    console.error("Vision error:", error);
     res.status(500).json({ error: "Vision processing failed" });
   }
 });
 
-app.listen(process.env.PORT, () => {
-  console.log("Server running on port " + process.env.PORT);
+app.listen(process.env.PORT || 3001, () => {
+  console.log("Server running on port 3001");
 });
