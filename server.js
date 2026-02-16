@@ -60,7 +60,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
 // 🔥 SERVE BUILT FRONTEND
 app.use(express.static(path.join(__dirname, "dist")));
 
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
