@@ -321,12 +321,12 @@ async function captureCards() {
     return;
   }
 
-  if (video.videoWidth === 0 || video.videoHeight === 0) {
+  if (!video.videoWidth || !video.videoHeight) {
     alert("Video not ready yet");
     return;
   }
 
-  // Create snapshot canvas inside cameraWrapper
+  // Create / reuse snapshot canvas
   let canvas = document.getElementById("snapshot") as HTMLCanvasElement | null;
 
   if (!canvas) {
@@ -344,75 +344,74 @@ async function captureCards() {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    alert("Canvas context error");
+    return;
+  }
+
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // Convert to blob for backend
-  const blob: Blob = await new Promise((resolve) =>
-    canvas!.toBlob((b) => resolve(b!), "image/jpeg", 0.95),
+  // Convert to blob safely
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas!.toBlob((b) => resolve(b), "image/jpeg", 0.95)
   );
+
+  if (!blob) {
+    alert("Failed to create image blob");
+    return;
+  }
 
   const formData = new FormData();
   formData.append("image", blob);
 
-  /* try {
+  try {
     const response = await fetch("/analyze-cards", {
       method: "POST",
       body: formData,
-    }); */
-
-    fetch("/analyze-cards", {
-      method: "POST",
-      body: formData
     });
 
-  app.get("/analyze-cards", (req, res) => {
-    res.status(405).json({ error: "Use POST method" });
-  });
-
-    const data = await response.json();
-
-    if (!data.result) {
-      alert("Recognition failed");
-      return;
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Server ${response.status}: ${text}`);
     }
 
-    const parsed = JSON.parse(data.result);
+    const parsed = await response.json();
 
-    if (!parsed.cards || !Array.isArray(parsed.cards)) {
-      alert("Invalid response from API");
-      return;
+    if (!parsed || !Array.isArray(parsed.cards)) {
+      throw new Error("Invalid JSON structure from server");
     }
 
-    // Fill selectedHand
     selectedHand = parsed.cards.map((c: string) => ({
       rank: c[0],
       suit: c[1],
     }));
 
     renderUI();
+
   } catch (err: any) {
     console.error("FULL API ERROR:", err);
-    alert("API call failed: " + err?.message);
+    alert("API call failed: " + err.message);
   }
 
   // Turn off torch safely
   try {
-    const track = cameraStream.getVideoTracks()[0] as any;
+    const track = cameraStream?.getVideoTracks()?.[0] as any;
     if (track?.getCapabilities?.().torch) {
-      await track.applyConstraints({
-        advanced: [{ torch: false }],
-      });
+      await track.applyConstraints({ advanced: [{ torch: false }] });
     }
   } catch {}
 
-  // Stop camera
-  cameraStream.getTracks().forEach((t) => t.stop());
+  // Stop camera safely
+  try {
+    cameraStream?.getTracks().forEach((t) => t.stop());
+  } catch {}
+
   cameraStream = null;
   cameraVisible = false;
-
   renderCameraArea();
 }
+
 
 function drawFanCornerGuides(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d")!;

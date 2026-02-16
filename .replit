@@ -1,40 +1,12 @@
-entrypoint = "index.js"
-modules = ["nodejs-22"]
-hidden = [".config", "package-lock.json"]
-
-[gitHubImport]
-requiredFiles = [".replit", "replit.nix", "package.json", "package-lock.json"]
-
-[nix]
-channel = "stable-24_11"
-
-[deployment]
-run = ["node", "index.js"]
-deploymentTarget = "autoscale"
-ignorePorts = false
+run = "npm run build && node server.js"
 
 [agent]
 expertMode = true
 
-[workflows]
-runButton = "Project"
+[[ports]]
+localPort = 3000
+externalPort = 80
 
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Run App"
-
-[[workflows.workflow]]
-name = "Run App"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx tsx index.ts"
-
-[workflows.workflow.metadata]
-outputType = "console"
+[[ports]]
+localPort = 3001
+externalPort = 3001
