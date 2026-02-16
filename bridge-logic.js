@@ -130,7 +130,7 @@ class BridgeHand {
     getBestMajor() {
         if (this.suits.spades.length >= 5 && this.suits.hearts.length >= 5) {
             // Choose longer suit, if tied choose spades
-            return this.suits.spades.length >= this.suits.hearts.length ? 'spades' : 'hearts';
+            return this.suits.spades.length > this.suits.hearts.length ? 'spades' : 'hearts';
         }
         if (this.suits.spades.length >= 5) return 'spades';
         if (this.suits.hearts.length >= 5) return 'hearts';

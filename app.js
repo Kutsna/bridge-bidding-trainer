@@ -161,7 +161,7 @@ function formatBid(bid) {
         'NT': 'NT'
     };
     
-    const match = bid.match(/^(\d+)([CDHSN].*?)$/);
+    const match = bid.match(/^(\d+)(NT|[CDHS])$/);
     if (match) {
         const level = match[1];
         const strain = match[2];
@@ -246,7 +246,7 @@ function getSimulatedPartnerBid() {
     }
     
     // If we opened a suit, partner might raise or bid NT
-    const match = lastBid.bid.match(/^1([CDHSN].*?)$/);
+    const match = lastBid.bid.match(/^1(NT|[CDHS])$/);
     if (match) {
         const strain = match[1];
         if (strain === 'S' || strain === 'H') {

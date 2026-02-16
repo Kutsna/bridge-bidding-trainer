@@ -19,11 +19,11 @@ class SAYCSystem {
             };
         }
 
-        // 22+ HCP - 2NT or 2C
+        // 22-24 HCP Balanced - 2NT (traditional SAYC)
         if (hcp >= 22 && hcp <= 24 && handType === 'Balanced') {
             return {
                 bid: '2NT',
-                explanation: `With ${hcp} HCP and a balanced hand, open 2NT (20-21 HCP in modern SAYC, 22-24 in traditional).`
+                explanation: `With ${hcp} HCP and a balanced hand, open 2NT showing 22-24 HCP (traditional SAYC).`
             };
         }
 
