@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge Bidding Trainer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bridge Bidding Trainer</h1>
+            <p class="subtitle">SAYC Bidding System</p>
+        </header>
+
+        <main>
+            <!-- Card Selection Section -->
+            <section class="card-selection">
+                <h2>Select Your 13 Cards</h2>
+                <div class="suit-container">
+                    <div class="suit-row">
+                        <span class="suit-label spades">♠</span>
+                        <div class="cards" id="spades"></div>
+                    </div>
+                    <div class="suit-row">
+                        <span class="suit-label hearts">♥</span>
+                        <div class="cards" id="hearts"></div>
+                    </div>
+                    <div class="suit-row">
+                        <span class="suit-label diamonds">♦</span>
+                        <div class="cards" id="diamonds"></div>
+                    </div>
+                    <div class="suit-row">
+                        <span class="suit-label clubs">♣</span>
+                        <div class="cards" id="clubs"></div>
+                    </div>
+                </div>
+                <div class="selection-info">
+                    <span id="card-count">Cards Selected: 0/13</span>
+                    <button id="clear-btn" class="btn btn-secondary">Clear All</button>
+                    <button id="analyze-btn" class="btn btn-primary" disabled>Analyze Hand</button>
+                </div>
+            </section>
+
+            <!-- Hand Analysis Section -->
+            <section class="hand-analysis" id="hand-analysis" style="display: none;">
+                <h2>Hand Analysis</h2>
+                <div class="analysis-grid">
+                    <div class="analysis-item">
+                        <label>High Card Points (HCP):</label>
+                        <span id="hcp-value">0</span>
+                    </div>
+                    <div class="analysis-item">
+                        <label>Distribution:</label>
+                        <span id="distribution-value">0-0-0-0</span>
+                    </div>
+                    <div class="analysis-item">
+                        <label>Longest Suit:</label>
+                        <span id="longest-suit">-</span>
+                    </div>
+                    <div class="analysis-item">
+                        <label>Hand Type:</label>
+                        <span id="hand-type">-</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bidding Section -->
+            <section class="bidding-section" id="bidding-section" style="display: none;">
+                <h2>Bidding Sequence</h2>
+                <div class="bidding-table">
+                    <div class="bidding-header">
+                        <span>North (You)</span>
+                        <span>East</span>
+                        <span>South (Partner)</span>
+                        <span>West</span>
+                    </div>
+                    <div id="bidding-history" class="bidding-history"></div>
+                </div>
+                
+                <div class="recommendation">
+                    <h3>Recommended Bid</h3>
+                    <div id="bid-recommendation" class="bid-display">-</div>
+                    <div id="bid-explanation" class="bid-explanation"></div>
+                </div>
+
+                <div class="bid-controls">
+                    <button id="accept-bid-btn" class="btn btn-primary">Accept Recommendation</button>
+                    <button id="custom-bid-btn" class="btn btn-secondary">Make Different Bid</button>
+                    <button id="reset-bidding-btn" class="btn btn-secondary">Reset Bidding</button>
+                </div>
+
+                <!-- Custom Bid Modal -->
+                <div id="custom-bid-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <h3>Select Your Bid</h3>
+                        <div id="bid-options" class="bid-options"></div>
+                        <button id="close-modal-btn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="bridge-logic.js"></script>
+    <script src="sayc-system.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
