@@ -607,17 +607,17 @@ function recognizeCardsFromCanvas(canvas: HTMLCanvasElement) {
 
   for (const c of corners) {
     const crop = document.createElement("canvas");
-    crop.width = Math.floor(c.width * 0.55);
-    crop.height = Math.floor(c.height * 0.55);
+    crop.width = Math.floor(c.w * 0.55);
+    crop.height = Math.floor(c.h * 0.55);
 
     crop
       .getContext("2d")!
       .drawImage(
-        c,
-        0,
-        0,
-        crop.width,
-        crop.height,
+        canvas,
+        c.x,
+        c.y,
+        c.w,
+        c.h,
         0,
         0,
         crop.width,
@@ -1285,7 +1285,7 @@ function addBid(bid: string) {
   // Find last non-pass bid
   let lastIndex = -1;
   for (let i = auction.length - 1; i >= 0; i--) {
-    if (auction[i] !== "P") {
+    if (auction[i].bid !== "P") {
       lastIndex = i;
       break;
     }
@@ -1304,7 +1304,7 @@ function addBid(bid: string) {
     }
 
     // Cannot double X or XX
-    if (lastBid === "X" || lastBid === "XX") {
+    if (lastBid.bid === "X" || lastBid.bid === "XX") {
       alert("Double not allowed.");
       return;
     }
@@ -1321,7 +1321,7 @@ function addBid(bid: string) {
   // -------------------------
   if (bid === "XX") {
 
-    if (lastBid !== "X") {
+    if (lastBid?.bid !== "X") {
       alert("Redouble only allowed after X.");
       return;
     }
