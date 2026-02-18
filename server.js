@@ -138,39 +138,99 @@ app.post("/recommend-bid-ai", async (req, res) => {
     const shape = `${distribution.S}-${distribution.H}-${distribution.D}-${distribution.C}`;
 
     const prompt = `
-You are an expert-level contract bridge bidding engine.
-System: Standard American Yellow Card (SAYC).
+You are a professional contract bridge bidding engine.
 
-You MUST:
+SYSTEM: Modern Standard American Yellow Card (SAYC, Weak NT style).
 
-1. Determine whose turn it is.
-2. Identify the last bid made.
-3. Determine whether that bid was by partner or opponent.
-4. Interpret what that bid shows in terms of HCP range and distribution.
-5. Decide correct rebid or action accordingly.
+ABSOLUTE RULES:
 
-Hand: ${JSON.stringify(selectedHand)}
+1. You MUST analyze the entire auction in order before making any recommendation.
+2. You MUST interpret each bid seat-by-seat.
+3. You MUST determine:
+   - Partnership
+   - HCP range shown
+   - Suit length shown
+   - Forcing / non-forcing status
+4. Only AFTER full auction analysis may you recommend a bid.
+5. If you skip auction analysis, your answer is invalid.
 
+--------------------------------------------------
+
+OPENING STRUCTURE:
+
+• 1♣ / 1♦ = 3+ cards, 12–21 HCP
+• 1♥ / 1♠ = 5+ cards, 12–21 HCP
+• 1NT = 15–17 balanced
+• 2NT = 20–21 balanced
+• Weak Twos = 6-card suit, 6–10 HCP
+• 2♣ = 22+ HCP or game forcing
+
+RESPONSES:
+
+• 1NT response to suit opening = 6–9 HCP, non-forcing
+• New suit at 2-level = 10+ HCP, forcing one round
+• Raises show support and defined point ranges
+• 1NT opening uses Stayman and Transfers
+
+--------------------------------------------------
+
+IMPORTANT:
+
+DO NOT recount HCP.
+DO NOT recalculate distribution.
+USE the provided HCP and shape exactly.
+
+--------------------------------------------------
+
+HAND DATA:
+
+Cards: ${JSON.stringify(selectedHand)}
 HCP: ${hcp}
-Shape: ${shape}
-Distribution:
-S: ${distribution.S}
-H: ${distribution.H}
-D: ${distribution.D}
-C: ${distribution.C}
+Shape (S-H-D-C): ${shape}
 
-Auction (chronological, dealer first):
-${JSON.stringify(auction, null, 2)}
+--------------------------------------------------
 
-Dealer: ${dealer}
-Vulnerability: ${vulnerability}
+AUCTION (IN ORDER):
 
-Return STRICT JSON:
+${auction.length
+  ? auction.map(a => `${a.seat}: ${a.bid}`).join("\n")
+  : "No bids yet"}
+
+--------------------------------------------------
+
+TASKS:
+
+STEP 1 — Auction Analysis:
+Explain each bid sequentially with:
+• Seat
+• HCP range shown
+• Suit length shown
+• Convention name if any
+• Forcing / non-forcing status
+
+STEP 2 — Only after completing Step 1:
+Recommend the correct next bid in SAYC.
+
+--------------------------------------------------
+
+STRICT JSON OUTPUT ONLY:
+
 {
+  "auctionAnalysis": [
+    {
+      "seat": "S/W/N/E",
+      "bid": "string",
+      "meaning": "brief explanation including HCP range, length, forcing status"
+    }
+  ],
   "bid": "string",
-  "analysis": "explain interpretation of last bid",
-  "explanation": "final concise reasoning"
+  "explanation": "short reasoning under 30 words"
 }
+
+NO markdown.
+NO commentary.
+NO skipping analysis.
+ONLY JSON.
 `;
 
     const response = await openai.responses.create({
@@ -253,6 +313,6 @@ app.use((req, res, next) => {
 
 /* ================= START SERVER ================= */
 
-app.listen(3001, () => {
+app.listen(3001, "0.0.0.0", () => {
   console.log("Server running on port 3001");
 });
