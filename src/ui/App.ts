@@ -3,7 +3,7 @@
 ========================================================= */
 
 import * as tf from "@tensorflow/tfjs";
-
+/*
 import { computeHandFacts } from "../engine/hand/handFacts.ts";
 import { recommendBid } from "../engine/recommendBid.ts";
 import { derivePosition } from "../engine/auction/derivePosition.ts";
@@ -13,7 +13,7 @@ import { sayc1NTResponseRules } from "../engine/rules/sayc/ntResponses.ts";
 import { saycStaymanReplyRules } from "../engine/rules/sayc/staymanReplies.ts";
 import { saycJacobyReplyRules } from "../engine/rules/sayc/jacobyReplies.ts";
 import { saycStaymanContinuationRules } from "../engine/rules/sayc/staymanContinuations.ts";
-
+*/
 /* ML (used in Phase 3) */
 import { recognizeCard } from "../ml/recognizeCard";
 import { loadRankModel } from "../ml/rankModel";
@@ -165,7 +165,12 @@ type CornerBox = { x: number; y: number; w: number; h: number };
 ========================================================= */
 
 //let selectedHand: { rank: string; suit: string }[] = [];
-let auction: string[] = [];
+type AuctionEntry = {
+  seat: Seat;
+  bid: string;
+};
+
+let auction: AuctionEntry[] = [];
 
 let selectedLevel: string | null = null;
 
@@ -175,9 +180,10 @@ let vulnerability: "NONE" | "NS" | "EW" | "BOTH" = "NONE";
 let cameraStream: MediaStream | null = null;
 let cameraVisible = false;
 
-type HandItem = { rank: string; suit: string } | { image: HTMLCanvasElement };
+type HandItem = { rank: string; suit: "S" | "H" | "D" | "C" };
 
 let selectedHand: HandItem[] = [];
+let isSelectorOpen = false;
 
 /* =========================================================
    CAMERA
@@ -315,36 +321,28 @@ async function captureCards() {
     return;
   }
 
-  const video = document.getElementById("camera") as HTMLVideoElement | null;
-  if (!video) {
-    alert("Video element not found");
-    return;
-  }
+  const video = document.getElementById("camera") as HTMLVideoElement;
+  const button = document.getElementById("captureBtn") as HTMLButtonElement;
 
   if (!video.videoWidth || !video.videoHeight) {
     alert("Video not ready yet");
     return;
   }
 
-  // Create / reuse snapshot canvas
-  let canvas = document.getElementById("snapshot") as HTMLCanvasElement | null;
+  // 🔹 Freeze video
+  video.pause();
 
-  if (!canvas) {
-    canvas = document.createElement("canvas");
-    canvas.id = "snapshot";
-    canvas.style.width = "100%";
-    canvas.style.maxWidth = "500px";
-    canvas.style.border = "3px solid red";
-    canvas.style.marginTop = "6px";
+  // 🔹 Make button green
+  button.style.background = "green";
 
-    const wrapper = document.getElementById("cameraWrapper");
-    if (wrapper) wrapper.appendChild(canvas);
-  }
-
+  // 🔹 Create offscreen canvas (NOT appended to DOM)
+  const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
   if (!ctx) {
     alert("Canvas context error");
     return;
@@ -382,9 +380,17 @@ async function captureCards() {
       throw new Error("Invalid JSON structure from server");
     }
 
-    selectedHand = parsed.cards.map((c: string) => ({
+    const validCards = parsed.cards
+      .map((c: unknown) => String(c ?? "").trim().toUpperCase())
+      .filter((c: string) => /^[AKQJT98765432][SHDC]$/.test(c));
+
+    if (validCards.length !== 13) {
+      throw new Error(`Expected 13 cards, received ${validCards.length}`);
+    }
+
+    selectedHand = validCards.map((c: string) => ({
       rank: c[0],
-      suit: c[1],
+      suit: c[1] as "S" | "H" | "D" | "C",
     }));
 
     renderUI();
@@ -488,16 +494,7 @@ function captureFrame() {
   ctx.font = "bold 28px Arial";
   ctx.textBaseline = "top";
 
-  boxes.forEach((b, i) => {
-    // white background
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillRect(b.x + 4, b.y + 4, 44, 32);
-
-    // black text
-    ctx.fillStyle = "black";
-  });
-
-  console.log("FORCED DRAW DONE, boxes =", boxes.length);
+  console.log("FORCED DRAW DONE");
 }
 
 /* =========================================================
@@ -606,6 +603,8 @@ function detectRank(canvas: HTMLCanvasElement): string | null {
 function recognizeCardsFromCanvas(canvas: HTMLCanvasElement) {
   selectedHand = [];
 
+  const corners = detectCardCornersOpenCV(canvas);
+
   for (const c of corners) {
     const crop = document.createElement("canvas");
     crop.width = Math.floor(c.width * 0.55);
@@ -625,10 +624,10 @@ function recognizeCardsFromCanvas(canvas: HTMLCanvasElement) {
         crop.height,
       );
 
-    // 🔥 CONVERT TO IMAGE
-    const dataUrl = crop.toDataURL("image/png");
+    const rank = detectRank(crop) ?? guessRankByInk(crop);
+    const suit = detectSuit(crop) ?? "S";
 
-    selectedHand.push({ image: dataUrl });
+    selectedHand.push({ rank, suit });
   }
 
   renderUI();
@@ -715,7 +714,7 @@ function currentTurn(): Seat {
 }
 
 function auctionEnded() {
-  return auction.length >= 4 && auction.slice(-3).every((b) => b === "P");
+  return auction.length >= 4 && auction.slice(-3).every((b) => b.bid === "P");
 }
 
 function binarize(canvas: HTMLCanvasElement, threshold = 140) {
@@ -749,10 +748,15 @@ function renderCornerPreview(corners: HTMLCanvasElement[]) {
   });
 }
 
-function sortHandHighToLow(hand: { rank: string; suit: string }[]) {
+function sortHandHighToLow(hand: HandItem[]) {
   return hand.sort((a, b) => {
     // First sort by suit order S, H, D, C
-    const suitOrder = { S: 0, H: 1, D: 2, C: 3 };
+    const suitOrder: Record<"S" | "H" | "D" | "C", number> = {
+      S: 0,
+      H: 1,
+      D: 2,
+      C: 3,
+    };
     if (suitOrder[a.suit] !== suitOrder[b.suit]) {
       return suitOrder[a.suit] - suitOrder[b.suit];
     }
@@ -836,7 +840,7 @@ function detectCardCornersOpenCV(canvas: HTMLCanvasElement) {
    MANUAL CARD SELECTION
 ========================================================= */
 
-function toggleCard(card) {
+function toggleCard(card: HandItem) {
   const i = selectedHand.findIndex(
     (c) => c.rank === card.rank && c.suit === card.suit,
   );
@@ -849,27 +853,9 @@ function toggleCard(card) {
    RENDERING
 ========================================================= */
 
-function renderHand(hand: any[]) {
-  // IMAGE DEBUG MODE
-  if (hand.length && hand[0].image) {
-    return `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${hand
-          .map(
-            (c) => `
-              <div style="border:1px solid #ccc;padding:4px;">
-                <img src="${c.image}"
-                     style="font-size:60px;font-weight:bold;color:${SUIT_SYMBOLS[s].color}" />
-              </div>
-            `,
-          )
-          .join("")}
-      </div>
-    `;
-  }
+function renderHand(hand: HandItem[]) {
 
-  // NORMAL MODE (unchanged)
-  const bySuit = {
+  const bySuit: Record<"S" | "H" | "D" | "C", HandItem[]> = {
     S: hand.filter((c) => c.suit === "S"),
     H: hand.filter((c) => c.suit === "H"),
     D: hand.filter((c) => c.suit === "D"),
@@ -884,51 +870,56 @@ function renderHand(hand: any[]) {
     return sum;
   }, 0);
 
-  // ✅ Card count only shown if not 13
-  const countLine =
-    hand.length < 13 ? `<div><b>Cards:</b> ${hand.length}/13</div>` : "";
+  const cardCount = hand.length;
+
+  function renderSuit(s: "S" | "H" | "D" | "C") {
+    return `
+      <div style="display:flex; margin-bottom:10px;">
+        ${
+          bySuit[s].length
+            ? bySuit[s].map((c) => `
+              <div style="
+                width:60px;
+                height:85px;
+                background:white;
+                border:2px solid rgb(0, 0, 0);
+                border-radius:6px;
+                margin-right:3px;
+                display:flex;
+                flex-direction:column;
+                justify-content:space-between;
+                align-items:center;
+                font-weight:bold;
+                font-size:35px;
+                color:${SUIT_SYMBOLS[s].color};
+              ">
+                <div style="margin-top:1px;">
+                  ${c.rank}
+                </div>
+                <div style="font-size:40px; margin-bottom:1px;">
+                  ${SUIT_SYMBOLS[s].symbol}
+                </div>
+              </div>
+            `).join("")
+            : ""
+        }
+      </div>
+    `;
+  }
 
   return `
-    ${(["S", "H", "D", "C"] as const)
-      .map(
-        (s) =>
-          `<div style="font-size:55px;font-weight:bold;color:${SUIT_SYMBOLS[s].color}">
-            <span style="
-  text-shadow:
-    -1px -1px 0 grey,
-           1px -1px 0 grey,
-          -1px  1px 0 grey,
-           1px  1px 0 grey;
-">
-  ${SUIT_SYMBOLS[s].symbol}
-</span>
-${
-  bySuit[s].length
-    ? bySuit[s]
-        .map(
-          (c) => `
-      <span style="
-        margin-right:1px;
-        text-shadow:
-          -1px -1px 0 grey,
-           1px -1px 0 grey,
-          -1px  1px 0 grey,
-           1px  1px 0 grey;
-      ">
-        ${c.rank}
-      </span>
-    `,
-        )
-        .join("")
-    : "-"
-}
-          </div>`,
-      )
-      .join("")}
-    <div class="handStats"><b>HCP:</b> ${hcp}</div>
-<div class="handStats">
-  ${hand.length < 13 ? `<b>Cards:</b> ${hand.length}/13` : ""}
-</div>
+    ${renderSuit("S")}
+    ${renderSuit("H")}
+    ${renderSuit("C")}
+    ${renderSuit("D")}
+
+    <div style="margin-top:6px;font-size:160%;">
+      <b>HCP:</b> ${hcp}
+    </div>
+
+    <div style="font-size:140%;">
+      ${cardCount < 13 ? `<b>Cards:</b> ${cardCount}/13` : ""}
+    </div>
   `;
 }
 
@@ -937,7 +928,8 @@ function renderDeck() {
     .map(
       (suit) =>
         `<div>
-      <b style="color:${SUIT_SYMBOLS[suit].color}">${SUIT_SYMBOLS[suit].symbol}</b>
+      <b style="color:${SUIT_SYMBOLS[suit].color}; font-size:3em; margin-left:12px; margin-right:1px;">
+  ${SUIT_SYMBOLS[suit].symbol} </b>
       ${ALL_RANKS.map(
         (rank) =>
           `<span onclick="toggleCard({rank:'${rank}',suit:'${suit}'})"
@@ -964,33 +956,219 @@ function renderDeck() {
     .join("");
 }
 
-function renderAuctionTable() {
-  const seats = orderedSeatsFromDealer();
-  let rows = "";
+const suitRank: Record<string, number> = {
+  C: 1,
+  D: 2,
+  H: 3,
+  S: 4,
+  NT: 5,
+};
 
-  for (let i = 0; i < auction.length; i += 4) {
-    rows += "<tr>";
-    for (let j = 0; j < 4; j++) rows += `<td>${auction[i + j] || ""}</td>`;
-    rows += "</tr>";
+function isHigherBid(newBid: string): boolean {
+  if (auction.length === 0) return true;
+
+  // Find last contract bid
+  let lastContract = "";
+
+  for (let i = auction.length - 1; i >= 0; i--) {
+    const b = auction[i].bid;
+if (b !== "P" && b !== "X" && b !== "XX") {
+      lastContract = b;
+      break;
+    }
   }
 
+  if (!lastContract) return true;
+
+  const lastLevel = Number(lastContract[0]);
+  const lastSuit = lastContract.substring(1);
+
+  const newLevel = Number(newBid[0]);
+  const newSuit = newBid.substring(1);
+
+  // Higher level always allowed
+  if (newLevel > lastLevel) return true;
+  if (newLevel < lastLevel) return false;
+
+  // Same level → compare suit rank
+  return suitRank[newSuit] > suitRank[lastSuit];
+}
+
+function renderAuctionTable() {
+  const seats = ["S", "W", "N", "E"];
+  const dealerColumn = seats.indexOf(dealer);
+
+  let rows = "";
+let currentRow = ["", "", "", ""];
+
+for (let i = 0; i < auction.length; i++) {
+
+  // Determine which column this bid belongs to
+  const column =
+    (dealerColumn + i) % 4;
+
+  currentRow[column] = auction[i].bid;
+
+  // If we just filled East (column 3), push row
+  if (column === 3) {
+    rows += "<tr>";
+
+    for (let j = 0; j < 4; j++) {
+      rows += `
+        <td style="
+          padding:10px 20px;
+          text-align:center;
+          font-size:180%;
+          font-weight:bold;
+          border:2px solid rgba(128,128,128,0.5);
+        ">
+          ${(() => {
+  const rawBid = currentRow[j];
+  if (!rawBid) return "";
+
+  if (
+    rawBid.length >= 2 &&
+    rawBid !== "P" &&
+    rawBid !== "X" &&
+    rawBid !== "XX"
+  ) {
+    const level = rawBid[0];
+    const suit = rawBid.slice(1);
+
+    const suitMap: Record<string, string> = {
+      S: "♠",
+      H: "♥",
+      D: "♦",
+      C: "♣",
+      NT: "NT",
+    };
+
+    const color =
+      suit === "H" || suit === "D"
+        ? "red"
+        : "black";
+
+    return `
+      <span style="color:${color};">
+        ${level}${suitMap[suit] || suit}
+      </span>
+    `;
+  }
+
+  return rawBid;
+})()}
+        </td>
+      `;
+    }
+
+    rows += "</tr>";
+    currentRow = ["", "", "", ""];
+  }
+}
+
+// Add remaining partial row (if auction doesn't end on East)
+if (currentRow.some(cell => cell !== "")) {
+  rows += "<tr>";
+
+  for (let j = 0; j < 4; j++) {
+    rows += `
+      <td style="
+        padding:10px 20px;
+        text-align:center;
+        font-size:180%;
+        font-weight:bold;
+        border:2px solid rgba(128,128,128,0.5);
+      ">
+        ${(() => {
+  const rawBid = currentRow[j];
+  if (!rawBid) return "";
+
+  if (
+    rawBid.length >= 2 &&
+    rawBid !== "P" &&
+    rawBid !== "X" &&
+    rawBid !== "XX"
+  ) {
+    const level = rawBid[0];
+    const suit = rawBid.slice(1);
+
+    const suitMap: Record<string, string> = {
+      S: "♠",
+      H: "♥",
+      D: "♦",
+      C: "♣",
+      NT: "NT",
+    };
+
+    const color =
+      suit === "H" || suit === "D"
+        ? "red"
+        : "black";
+
+    return `
+      <span style="color:${color};">
+        ${level}${suitMap[suit] || suit}
+      </span>
+    `;
+  }
+
+  return rawBid;
+})()}
+      </td>
+    `;
+  }
+
+  rows += "</tr>";
+}
+
   return `
-    <table border="1">
-      <tr>${seats
-        .map(
-          (s) => `<th style="
-  ${s === dealer ? "background:#ffe0b2;" : ""}
-  ${isVulnerableSeat(s) ? "color:red;font-weight:bold;" : ""}
-">
-  ${s}${s === dealer ? " (D)" : ""}
-</th>`,
-        )
-        .join("")}</tr>
+    <table style="
+      border-collapse:collapse;
+      margin:20px auto;
+      background:white;
+      color:black;
+      min-width:500px;
+      border:4px solid rgba(128,128,128,0.5);
+      box-shadow:
+        inset 0 0 8px rgba(0,0,0,0.2),
+        0 4px 8px rgba(0,0,0,0.3);
+    ">
+      <tr>
+  ${seats
+    .map((s) => {
+      const vulnerable = isVulnerableSeat(s as Seat);
+
+      return `
+        <th style="
+          padding:10px 20px;
+          border:2px solid rgba(128,128,128,0.5);
+          font-weight:bold;
+          color:${vulnerable ? "red" : "black"};
+        ">
+          ${s}${s === dealer ? " *" : ""}
+        </th>
+      `;
+    })
+    .join("")}
+</tr>
+
       ${rows}
     </table>
-    <div>${auctionEnded() ? "Auction Ended" : `${currentTurn()} to bid: `}</div>
+
+    <div style="
+  margin-top:10px;
+  text-align:center;
+  font-size:200%;
+  font-weight:bold;
+">
+  ${auctionEnded()
+    ? "Auction Ended"
+    : `${currentTurn()} to bid:`}
+</div>
   `;
 }
+
+
 
 function renderBidButtons() {
   const levels = ["1", "2", "3", "4", "5", "6", "7"];
@@ -1091,13 +1269,90 @@ function isVulnerableSeat(seat: Seat) {
 /* =========================================================
    AUCTION + RECOMMENDATION
 ========================================================= */
+function countTrailingPasses(): number {
+  let count = 0;
+  for (let i = auction.length - 1; i >= 0; i--) {
+    if (auction[i].bid === "P") count++;
+    else break;
+  }
+  return count;
+}
+
 
 function addBid(bid: string) {
-  if (!auctionEnded()) {
-    auction.push(bid);
-    renderUI();
+  const trailingPasses = countTrailingPasses();
+
+  // Find last non-pass bid
+  let lastIndex = -1;
+  for (let i = auction.length - 1; i >= 0; i--) {
+    if (auction[i] !== "P") {
+      lastIndex = i;
+      break;
+    }
   }
+
+  const lastBid = lastIndex >= 0 ? auction[lastIndex] : null;
+
+  // -------------------------
+  // DOUBLE
+  // -------------------------
+  if (bid === "X") {
+
+    if (!lastBid) {
+      alert("Double not allowed.");
+      return;
+    }
+
+    // Cannot double X or XX
+    if (lastBid === "X" || lastBid === "XX") {
+      alert("Double not allowed.");
+      return;
+    }
+
+    // Allow only immediate or after exactly 2 passes
+    if (trailingPasses !== 0 && trailingPasses !== 2) {
+      alert("Double not allowed in this position.");
+      return;
+    }
+  }
+
+  // -------------------------
+  // REDOUBLE
+  // -------------------------
+  if (bid === "XX") {
+
+    if (lastBid !== "X") {
+      alert("Redouble only allowed after X.");
+      return;
+    }
+
+    // Allow immediate or after exactly 2 passes
+    if (trailingPasses !== 0 && trailingPasses !== 2) {
+      alert("Redouble not allowed in this position.");
+      return;
+    }
+  }
+
+  // -------------------------
+  // CONTRACT BIDS
+  // -------------------------
+  if (bid !== "P" && bid !== "X" && bid !== "XX") {
+    if (!isHigherBid(bid)) {
+      alert("Bid must be higher than previous contract.");
+      return;
+    }
+  }
+
+  if (!auctionEnded()) {
+  auction.push({
+    seat: currentTurn(),
+    bid: bid
+  });
+
+  renderUI();
 }
+}
+
 
 function selectLevel(level: string) {
   selectedLevel = level;
@@ -1130,7 +1385,7 @@ function resetAuction() {
   auction = [];
   renderUI();
 }
-
+/*
 const rules = [
   ...saycOpeningRules,
   ...sayc1NTResponseRules,
@@ -1174,7 +1429,49 @@ function recommend() {
   `<b>No SAYC rule matched.</b>
        <br/>Opening=${isOpening}
        <br/>HCP=${facts.hcp}`;
+} */
+
+  async function recommend() {
+  try {
+    const response = await fetch("http://localhost:3001/recommend-bid-ai", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        selectedHand,
+        auction,
+        dealer: (document.getElementById("dealer") as HTMLSelectElement).value,
+        vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value
+      })
+    });
+
+    console.log("AUCTION SENT:", auction);
+
+    const data = await response.json();
+
+    console.log("AI RESPONSE:", data);
+
+    if (!response.ok) {
+      alert("AI recommendation failed.");
+      return;
+    }
+
+    document.getElementById("output")!.innerHTML = `
+  <div style="font-size: 70px; font-weight: bold; margin-top: 10px;">
+    <div>Adviced bid: ${data.bid}</div>
+    <div style="font-size: 36px; font-weight: normal; margin-top: 8px;">
+      ${data.explanation}
+    </div>
+  </div>
+`;
+
+  } catch (err) {
+    console.error("Frontend error:", err);
+    alert("AI recommendation failed.");
+  }
 }
+
 
 /* =========================================================
    UI + EXPORTS
@@ -1186,6 +1483,12 @@ document.body.style.margin = "0";
 document.body.style.color = "white";
 
 document.body.innerHTML = `
+<div style="
+  max-width:1400px;
+  margin:0 auto;
+  text-align:center;
+">
+
 <!-- Table -->
 <style>
   /* PC */
@@ -1294,64 +1597,111 @@ document.body.innerHTML = `
 </div>
 
 <!-- ================= ROW 1 ================= -->
-<div style="margin-bottom:24px;">
-  <h2 style="margin-bottom:12px;">Select / Correct Your Hand</h2>
-  <div id="deck"></div>
+<div style="margin-bottom:24px; text-align:center;">
+
+  <button id="deckToggleBtn" onclick="toggleDeck()">
+    Select / Correct Your Hand
+  </button>
+
+  <div id="deckWrapper" style="display:none; margin-top:12px;">
+    <div id="deck"></div>
+  </div>
+
+  
+
+  <div style="
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:60px;
+  margin:20px auto;
+">
+
+  <!-- Dealer -->
+  <div style="text-align:center;">
+  <div style="font-size:160%; font-weight:bold; margin-bottom:4px;">
+    Dealer
+  </div>
+  <select id="dealer" style="font-size:1.2em;padding:8px 20px;">
+    <option value="W">West</option>
+    <option value="N">North</option>
+    <option value="E">East</option>
+    <option value="S" selected>South</option>
+  </select>
+</div>
+
+  <!-- Auction Column -->
+<div style="text-align:center;">
+
+  <div id="auctionTable"></div>
+
+  <div style="margin-top:12px;">
+    <button onclick="undoBid()" style="margin-right:10px;">
+      Undo
+    </button>
+
+    <button onclick="resetAuction()">
+      Clear Auction
+    </button>
+  </div>
+
+</div>
+
+  <!-- Vulnerability -->
+  <div style="text-align:center;">
+  <div style="font-size:160%; font-weight:bold; margin-bottom:4px;">
+    Vulnerability
+  </div>
+  <select id="vuln" style="font-size:1.2em;padding:8px 20px;">
+    <option value="NONE">None</option>
+    <option value="NS">NS</option>
+    <option value="EW">EW</option>
+    <option value="BOTH">Both</option>
+  </select>
+</div>
+
+</div>
+
+
 </div>
 
 <!-- ================= ROW 2 ================= -->
 <div style="display:flex;gap:40px;flex-wrap:wrap;margin-bottom:32px;">
 
   <!-- Your Hand -->
-  <div style="flex:1;min-width:300px;">
+  <div style="flex:1;min-width:300px; text-align:left;">
     <h2>Your Hand</h2>
     <div id="handView"></div>
   </div>
 
   <!-- Auction Buttons -->
-  <div style="flex:1;min-width:300px;">
+  <div style="flex:1;min-width:100px; text-align:right;">
     <h2>Auction</h2>
-    <div id="bidButtons" style="margin-top:12px;"></div>
-    <div id="auctionTable"></div>
-  </div>
 
+    <div id="bidButtons" style="margin-top:12px;"></div>
+    
+    
+  </div>
 </div>
 
 <!-- ================= ROW 3 ================= -->
-<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;">
-
-  <!-- Dealer -->
-  <div>
-    <h2>Dealer</h2>
-    <select id="dealer" style="font-size:1.4em;padding:12px 20px;">
-      <option value="W">West</option>
-      <option value="N">North</option>
-      <option value="E">East</option>
-      <option value="S" selected>South</option>
-    </select>
-  </div>
-
-  <!-- Vulnerability -->
-  <div>
-    <h2>Vulnerability</h2>
-    <select id="vuln" style="font-size:1.4em;padding:12px 20px;">
-      <option value="NONE">None</option>
-      <option value="NS">NS</option>
-      <option value="EW">EW</option>
-      <option value="BOTH">Both</option>
-    </select>
-  </div>
-
+<div style="
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  font-size:70%;
+">  
 </div>
+
 
 <br/>
 
-<button onclick="undoBid()">Undo</button>
-<button onclick="resetAuction()">Clear Auction</button>
 <button onclick="resetHand()">Clear Hand</button>
 <button onclick="recommend()">Recommend Bid</button>
 
 <div id="output"></div>
+</div>
 `;
 
 (window as any).toggleCard = toggleCard;
@@ -1366,6 +1716,24 @@ document.body.innerHTML = `
 (window as any).captureCards = captureCards;
 (window as any).selectLevel = selectLevel;
 (window as any).selectSuit = selectSuit;
+(window as any).toggleDeck = toggleDeck;
+
+function toggleDeck() {
+  const wrapper = document.getElementById("deckWrapper");
+  const btn = document.getElementById("deckToggleBtn");
+
+  if (!wrapper || !btn) return;
+
+  const isOpen = wrapper.style.display === "block";
+
+  wrapper.style.display = isOpen ? "none" : "block";
+
+  if (isOpen) {
+    btn.style.border = "";
+  } else {
+    btn.style.border = "6px solid red";
+  }
+}
 
 function renderUI() {
   document.getElementById("deck")!.innerHTML = renderDeck();
@@ -1384,18 +1752,6 @@ function renderUI() {
   };
 }
 
-// draw cropped images into canvases
-const canvases =
-  document.querySelectorAll<HTMLCanvasElement>("#handView canvas");
-
-let i = 0;
-for (const item of selectedHand) {
-  if ("image" in item && canvases[i]) {
-    canvases[i].getContext("2d")!.drawImage(item.image, 0, 0);
-    i++;
-  }
-}
-
 function renderCameraArea() {
   const el = document.getElementById("cameraArea");
   if (!el) return;
@@ -1403,6 +1759,7 @@ function renderCameraArea() {
   if (!cameraVisible) {
     el.innerHTML = `
       <button onclick="openCamera()">Open Camera to Capture Cards</button>
+      <div id="cameraContainer" style="display:none; margin-top:20px;"></div>
       <div id="cameraWrapper"></div>
     `;
     return;
@@ -1410,14 +1767,19 @@ function renderCameraArea() {
 
   el.innerHTML = `
     <div id="cameraWrapper"
-         style="position:relative;width:100%;max-width:500px;">
+     style="
+       position:relative;
+       width:100%;
+       max-width:600px;
+       margin:0 auto;
+     ">
 
       <video id="camera"
              autoplay muted playsinline
              style="width:100%;object-fit:cover;">
       </video>
 
-      <button onclick="captureCards()"
+      <button id="captureBtn" onclick="captureCards()"
               style="
                 position:absolute;
                 bottom:12px;
