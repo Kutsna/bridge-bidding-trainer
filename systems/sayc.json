@@ -1,0 +1,22 @@
+{
+  "name": "Modern SAYC",
+
+  "openingStructure": {
+    "1C": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },
+    "1D": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },    
+    "1H": { "minHCP": 12, "maxHCP": 21, "minHearts": 5, "priorityOver1NT": true,
+        "description": "Open 1♥ with 5+ hearts and 12–21 HCP."},
+    "1S": { "minHCP": 12, "maxHCP": 21, "minSpades": 5, "priorityOver1NT": true,
+        "description": "Open 1♠ with 5+ spades and 12–21 HCP."},
+    "1NT": { "minHCP": 15, "maxHCP": 17, "type": "balanced", "denyFiveCardMajor": true,
+        "description": "Open 1NT with 15–17 HCP balanced and no 5-card major."},
+    "2C": { "minHCP": 22, "type": "strong, game forcing", 
+        "description": "Open 2C with 22+ HCP, game forcing" }
+  },
+
+  "conventions": {
+    "Stayman": "2C over 1NT",
+    "Jacoby Transfers": "2D/2H over 1NT",
+    "Blackwood": "4NT asking for aces"
+  }
+}

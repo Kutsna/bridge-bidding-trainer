@@ -910,16 +910,18 @@ function renderHand(hand: HandItem[]) {
   return `
     ${renderSuit("S")}
     ${renderSuit("H")}
-    ${renderSuit("C")}
     ${renderSuit("D")}
+    ${renderSuit("C")}
 
-    <div style="margin-top:6px;font-size:160%;">
+    <div style="margin-top:6px;font-size:180%;">
       <b>HCP:</b> ${hcp}
     </div>
 
-    <div style="font-size:140%;">
+    <div style="font-size:160%;">
       ${cardCount < 13 ? `<b>Cards:</b> ${cardCount}/13` : ""}
     </div>
+
+    <button onclick="resetHand()">Clear Hand</button>
   `;
 }
 
@@ -937,8 +939,8 @@ function renderDeck() {
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    width:56px;
-    height:56px;
+    width:50px;
+    height:50px;
     margin:4px;
     font-size:30px;
     border-radius:8px;
@@ -1016,7 +1018,7 @@ for (let i = 0; i < auction.length; i++) {
     for (let j = 0; j < 4; j++) {
       rows += `
         <td style="
-          padding:10px 20px;
+          padding:8px 16px;
           text-align:center;
           font-size:180%;
           font-weight:bold;
@@ -1073,9 +1075,9 @@ if (currentRow.some(cell => cell !== "")) {
   for (let j = 0; j < 4; j++) {
     rows += `
       <td style="
-        padding:10px 20px;
+        padding:8px 16px;
         text-align:center;
-        font-size:180%;
+        font-size:144%;
         font-weight:bold;
         border:2px solid rgba(128,128,128,0.5);
       ">
@@ -1127,8 +1129,8 @@ if (currentRow.some(cell => cell !== "")) {
       margin:20px auto;
       background:white;
       color:black;
-      min-width:500px;
-      border:4px solid rgba(128,128,128,0.5);
+      min-width:450px;
+      border:6px solid rgba(128,128,128,0.5);
       box-shadow:
         inset 0 0 8px rgba(0,0,0,0.2),
         0 4px 8px rgba(0,0,0,0.3);
@@ -1140,7 +1142,7 @@ if (currentRow.some(cell => cell !== "")) {
 
       return `
         <th style="
-          padding:10px 20px;
+          padding:8px 16px;
           border:2px solid rgba(128,128,128,0.5);
           font-weight:bold;
           color:${vulnerable ? "red" : "black"};
@@ -1220,8 +1222,8 @@ function renderBidButtons() {
     <button 
   onclick="selectLevel('${l}')"
   style="
-    width: clamp(20px, 12vw, 85px);
-    height: clamp(20px, 12vw, 85px);
+    width: clamp(20px, 10vw, 80px);
+    height: clamp(20px, 10vw, 80px);
     font-size: clamp(0.8rem, 3vw, 2rem);
     font-weight:bold;
     margin:4px;
@@ -1432,8 +1434,11 @@ function recommend() {
 } */
 
   async function recommend() {
+  const selectedSystem =
+    (document.getElementById("systemSelect") as HTMLSelectElement).value;
+
   try {
-    const response = await fetch("http://localhost:3001/recommend-bid-ai", {
+    const response = await fetch("/recommend-bid-ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -1442,7 +1447,8 @@ function recommend() {
         selectedHand,
         auction,
         dealer: (document.getElementById("dealer") as HTMLSelectElement).value,
-        vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value
+        vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value,
+        system: selectedSystem
       })
     });
 
@@ -1458,13 +1464,13 @@ function recommend() {
     }
 
     document.getElementById("output")!.innerHTML = `
-  <div style="font-size: 70px; font-weight: bold; margin-top: 10px;">
-    <div>Adviced bid: ${data.bid}</div>
-    <div style="font-size: 36px; font-weight: normal; margin-top: 8px;">
-      ${data.explanation}
-    </div>
-  </div>
-`;
+      <div style="font-size: 70px; font-weight: bold; margin-top: 10px;">
+        <div>Adviced bid: ${data.bid}</div>
+        <div style="font-size: 36px; font-weight: normal; margin-top: 8px;">
+          ${data.explanation}
+        </div>
+      </div>
+    `;
 
   } catch (err) {
     console.error("Frontend error:", err);
@@ -1607,7 +1613,20 @@ document.body.innerHTML = `
     <div id="deck"></div>
   </div>
 
-  
+  <div style="margin-bottom:15px;">
+  <label for="systemSelect" style="font-weight:bold; font-size:30px;">
+    System:
+  </label>
+
+  <select id="systemSelect" style="font-size:30px; padding:8px;">
+    <option value="sayc">SAYC</option>
+    <option value="2over1">2/1 Game Forcing</option>
+    <option value="acol">Acol</option>
+    <option value="precision">Precision</option>
+    <option value="blueclub">Blue Club</option>
+    <option value="polishstandard">Polish Standard</option>
+  </select>
+</div>
 
   <div style="
   display:flex;
@@ -1636,13 +1655,10 @@ document.body.innerHTML = `
   <div id="auctionTable"></div>
 
   <div style="margin-top:12px;">
-    <button onclick="undoBid()" style="margin-right:10px;">
-      Undo
-    </button>
-
-    <button onclick="resetAuction()">
-      Clear Auction
-    </button>
+    <button onclick="undoBid()" style="margin-right:10px;">Undo</button>
+    <button onclick="resetAuction()">Clear Auction</button>
+    
+    <button onclick="recommend()">Advice Bid</button>
   </div>
 
 </div>
@@ -1674,6 +1690,7 @@ document.body.innerHTML = `
     <div id="handView"></div>
   </div>
 
+
   <!-- Auction Buttons -->
   <div style="flex:1;min-width:100px; text-align:right;">
     <h2>Auction</h2>
@@ -1697,8 +1714,7 @@ document.body.innerHTML = `
 
 <br/>
 
-<button onclick="resetHand()">Clear Hand</button>
-<button onclick="recommend()">Recommend Bid</button>
+
 
 <div id="output"></div>
 </div>
@@ -1758,7 +1774,7 @@ function renderCameraArea() {
 
   if (!cameraVisible) {
     el.innerHTML = `
-      <button onclick="openCamera()">Open Camera to Capture Cards</button>
+      <button onclick="openCamera()">Capture Cards</button>
       <div id="cameraContainer" style="display:none; margin-top:20px;"></div>
       <div id="cameraWrapper"></div>
     `;

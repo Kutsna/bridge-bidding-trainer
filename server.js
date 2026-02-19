@@ -7,6 +7,7 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import OpenAI from "openai";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -38,7 +39,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
     const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
     const response = await openai.responses.create({
-      model: "gpt-5.2",
+      model: "gpt-4.1-mini",
       input: [
         {
           role: "user",
@@ -115,12 +116,46 @@ function computeDistribution(hand) {
 }
 
 
+function formatSystemForPrompt(systemConfig) {
+  let text = `SYSTEM: ${systemConfig.name}\n\n`;
+
+  text += "OPENINGS:\n";
+  for (const [bid, rules] of Object.entries(systemConfig.openingStructure || {})) {
+    text += `• ${bid}: `;
+    if (rules.minHCP !== undefined) text += `${rules.minHCP}`;
+    if (rules.maxHCP !== undefined) text += `–${rules.maxHCP}`;
+    text += " HCP";
+    if (rules.minLength) text += `, ${rules.minLength}+ cards`;
+    if (rules.type) text += `, ${rules.type}`;
+    text += "\n";
+  }
+
+  text += "\nCONVENTIONS:\n";
+  for (const [conv, value] of Object.entries(systemConfig.conventions || {})) {
+    text += `• ${conv}: ${value}\n`;
+  }
+
+  return text;
+}
+
+function loadSystem(systemName) {
+  try {
+    const filePath = path.join(__dirname, "systems", `${systemName}.json`);
+    const raw = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("System file not found:", systemName);
+    throw new Error(`System '${systemName}' not found`);
+  }
+}
+
+
 /* =========================================================
    AI BID RECOMMENDATION
 ========================================================= */
 app.post("/recommend-bid-ai", async (req, res) => {
   try {
-    const { selectedHand, auction, dealer, vulnerability } = req.body;
+    const { selectedHand, auction, dealer, vulnerability, system } = req.body;
     console.log("AUCTION RECEIVED:", JSON.stringify(auction, null, 2));
 
     if (
@@ -136,9 +171,31 @@ app.post("/recommend-bid-ai", async (req, res) => {
     const hcp = computeHCP(selectedHand);
     const distribution = computeDistribution(selectedHand);
     const shape = `${distribution.S}-${distribution.H}-${distribution.D}-${distribution.C}`;
-
+    const systemConfig = loadSystem(system || "sayc");
+    const systemText = formatSystemForPrompt(systemConfig);
+    
     const prompt = `
 You are a professional contract bridge bidding engine.
+
+${systemText}
+
+IMPORTANT:
+1. You MUST strictly follow this system.
+2. Do not invent conventions.
+3. Use provided HCP and shape exactly.
+
+HAND:
+Cards: ${JSON.stringify(selectedHand)}
+HCP: ${hcp}
+Shape: ${shape}
+
+AUCTION:
+${auction.length
+  ? auction.map(a => `${a.seat}: ${a.bid}`).join("\n")
+  : "No bids yet"}
+
+Dealer: ${dealer}
+Vulnerability: ${vulnerability}
 
 SYSTEM: Modern Standard American Yellow Card (SAYC, Weak NT style).
 
@@ -278,7 +335,7 @@ ONLY JSON.
 app.post("/ai-test", async (req, res) => {
   try {
     const response = await openai.responses.create({
-      model: "gpt-5.2",
+      model: "gpt-4.1-mini",
       input: "Reply exactly with OK_123"
     });
 
@@ -313,6 +370,8 @@ app.use((req, res, next) => {
 
 /* ================= START SERVER ================= */
 
-app.listen(3001, "0.0.0.0", () => {
-  console.log("Server running on port 3001");
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
