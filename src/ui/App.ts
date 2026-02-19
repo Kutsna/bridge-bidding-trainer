@@ -2,7 +2,7 @@
    IMPORTS
 ========================================================= */
 
-import * as tf from "@tensorflow/tfjs";
+const tf = await import("@tensorflow/tfjs");
 /*
 import { computeHandFacts } from "../engine/hand/handFacts.ts";
 import { recommendBid } from "../engine/recommendBid.ts";

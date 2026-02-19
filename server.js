@@ -57,10 +57,38 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
       ]
     });
 
-    const text = response.output_text.trim();
-    const cards = JSON.parse(text);
+const text = response.output_text.trim();
 
-    res.json({ cards });
+let cards;
+
+try {
+  // Try normal JSON first
+  cards = JSON.parse(text);
+} catch (e) {
+  console.warn("Invalid JSON from AI, attempting cleanup...");
+
+  // Fix common GPT formatting mistakes
+  const cleaned = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .replace(/'/g, '"')          // single → double quotes
+    .replace(/,\s*]/g, "]")      // trailing commas
+    .trim();
+
+  try {
+    cards = JSON.parse(cleaned);
+  } catch (err) {
+    console.error("Still invalid JSON after cleanup:", cleaned);
+    throw new Error("AI returned invalid JSON format");
+  }
+}
+
+// Validate result strictly
+if (!Array.isArray(cards) || cards.length !== 13) {
+  throw new Error("AI did not return 13 cards");
+}
+
+res.json({ cards });
 
   } catch (err) {
     console.error("Recognition error:", err);
