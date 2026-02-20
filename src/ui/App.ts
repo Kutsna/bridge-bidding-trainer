@@ -3,18 +3,7 @@
 ========================================================= */
 
 const tf = await import("@tensorflow/tfjs");
-/*
-import { computeHandFacts } from "../engine/hand/handFacts.ts";
-import { recommendBid } from "../engine/recommendBid.ts";
-import { derivePosition } from "../engine/auction/derivePosition.ts";
 
-import { saycOpeningRules } from "../engine/rules/sayc/opening.ts";
-import { sayc1NTResponseRules } from "../engine/rules/sayc/ntResponses.ts";
-import { saycStaymanReplyRules } from "../engine/rules/sayc/staymanReplies.ts";
-import { saycJacobyReplyRules } from "../engine/rules/sayc/jacobyReplies.ts";
-import { saycStaymanContinuationRules } from "../engine/rules/sayc/staymanContinuations.ts";
-*/
-/* ML (used in Phase 3) */
 import { recognizeCard } from "../ml/recognizeCard";
 import { loadRankModel } from "../ml/rankModel";
 import { loadSuitModel } from "../ml/suitModel";
@@ -1351,6 +1340,30 @@ function addBid(bid: string) {
     bid: bid
   });
 
+  // 🔹 NEW: Explain last bid instantly
+  fetch("/explain-last-bid", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      auction,
+      dealer
+    })
+  })
+    .then(res => res.json())
+    .then(data => {
+      const output = document.getElementById("output");
+      if (output) {
+        output.innerHTML = `
+          <div style="font-size:36px; margin-top:10px;">
+            ${data.explanation}
+          </div>
+        `;
+      }
+    })
+    .catch(err => {
+      console.error("Explain error:", err);
+    });
+
   renderUI();
 }
 }
@@ -1387,53 +1400,8 @@ function resetAuction() {
   auction = [];
   renderUI();
 }
-/*
-const rules = [
-  ...saycOpeningRules,
-  ...sayc1NTResponseRules,
-  ...saycStaymanReplyRules,
-  ...saycJacobyReplyRules,
-  ...saycStaymanContinuationRules,
-];
 
-function recommend() {
-  if (selectedHand.length !== 13) {
-    alert("Select exactly 13 cards.");
-    return;
-  }
-
-  const auctionState = {
-    auction, // ← EMPTY array = opening
-    position: derivePosition(auction), // ← let engine decide
-
-    dealer,
-    vulnerability,
-
-    forcing: false,
-    system: "SAYC",
-    strategy: "THOROUGH",
-    competition: "none",
-  };
-
-  const facts = computeHandFacts(selectedHand);
-  const rec = recommendBid(rules, facts, auctionState);
-
-  document.getElementById("output")!.innerHTML = rec
-    ? `
-        <div style="font-size:120px;color:yellow;font-weight:bold;">
-  ${rec.bid}
-        </div>
-        <div style="font-size:40px;line-height:1;">
-          ${rec.explanation}
-        </div>
-     </div>`
-    : `<div>No SAYC rule matched.</div>`;
-  `<b>No SAYC rule matched.</b>
-       <br/>Opening=${isOpening}
-       <br/>HCP=${facts.hcp}`;
-} */
-
-  async function recommend() {
+async function recommend() {
   const selectedSystem =
     (document.getElementById("systemSelect") as HTMLSelectElement).value;
 
@@ -1465,7 +1433,7 @@ function recommend() {
 
     document.getElementById("output")!.innerHTML = `
       <div style="font-size: 70px; font-weight: bold; margin-top: 10px;">
-        <div>Adviced bid: ${data.bid}</div>
+        <div>Advised bid: ${data.bid}</div>
         <div style="font-size: 36px; font-weight: normal; margin-top: 8px;">
           ${data.explanation}
         </div>
@@ -1693,7 +1661,7 @@ document.body.innerHTML = `
 
   <!-- Auction Buttons -->
   <div style="flex:1;min-width:100px; text-align:right;">
-    <h2>Auction</h2>
+    
 
     <div id="bidButtons" style="margin-top:12px;"></div>
     

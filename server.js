@@ -84,8 +84,8 @@ try {
 }
 
 // Validate result strictly
-if (!Array.isArray(cards) || cards.length !== 13) {
-  throw new Error("AI did not return 13 cards");
+if (!Array.isArray(cards) || cards.length < 11 ) {
+  throw new Error("Check all 13 cards are present");
 }
 
 res.json({ cards });
@@ -177,6 +177,97 @@ function loadSystem(systemName) {
   }
 }
 
+function interpretAuction(auction, dealer) {
+
+  const seats = ["W", "N", "E", "S"];
+  const dealerIndex = seats.indexOf(dealer);
+
+  function seatAt(i) {
+    return seats[(dealerIndex + i) % 4];
+  }
+
+  function seatFullName(seat) {
+    return {
+      N: "North",
+      S: "South",
+      E: "East",
+      W: "West"
+    }[seat];
+  }
+
+  return auction.map((entry, i) => {
+
+    const seat = entry.seat || seatAt(i);
+    const side = (seat === "S" || seat === "N") ? "Us" : "Opp";
+
+    const bid = entry.bid;
+    let meaning = "Unknown";
+
+    // PASS
+    if (bid === "P") {
+      meaning = "Pass";
+    }
+
+    // OPENING BIDS
+    else if (i === 0) {
+      if (bid === "1C" || bid === "1D")
+        meaning = "HCP 12–21, length 3+";
+      if (bid === "1H" || bid === "1S")
+        meaning = "HCP 12–21, length 5+";
+      if (bid === "1NT")
+        meaning = "HCP 15–17, balanced";
+    }
+
+    // SIMPLE OVERCALL (after opponent opening)
+    else if (i === 3 && bid.startsWith("1")) {
+      if (bid === "1S")
+        meaning = "HCP 8–16, Spades length 5+";
+      else if (bid === "1H")
+        meaning = "HCP 8–16, Hearts length 5+";
+      else if (bid === "1D")
+        meaning = "HCP 8–16, Diamonds length 5+";
+      else if (bid === "1C")
+        meaning = "HCP 8–16, Clubs length 5+";
+    }
+
+    return {
+      seat,
+      seatName: seatFullName(seat),
+      side,
+      bid,
+      meaning
+    };
+  });
+}
+
+/* =========================================================
+   AUCTION BID EXPLANATION (INSTANT)
+========================================================= */
+
+app.post("/explain-last-bid", (req, res) => {
+  try {
+    const { auction, dealer } = req.body;
+
+    if (!Array.isArray(auction) || typeof dealer !== "string") {
+      return res.status(400).json({ error: "Missing auction data" });
+    }
+
+    if (auction.length === 0) {
+      return res.json({ explanation: "" });
+    }
+
+    const interpreted = interpretAuction(auction, dealer);
+    const last = interpreted[interpreted.length - 1];
+
+    res.json({
+      explanation: `${last.seatName} (${last.side}) bids ${last.bid}: ${last.meaning}`
+    });
+
+  } catch (err) {
+    console.error("Explain error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /* =========================================================
    AI BID RECOMMENDATION
@@ -200,128 +291,74 @@ app.post("/recommend-bid-ai", async (req, res) => {
     const distribution = computeDistribution(selectedHand);
     const shape = `${distribution.S}-${distribution.H}-${distribution.D}-${distribution.C}`;
     const systemConfig = loadSystem(system || "sayc");
-    const systemText = formatSystemForPrompt(systemConfig);
+    const systemText = JSON.stringify(systemConfig, null, 2);
+
+    const interpretedAuction = interpretAuction(auction, dealer);
     
     const prompt = `
-You are a professional contract bridge bidding engine.
+You are a strict bridge bidding engine.
+You must follow the provided SYSTEM_JSON exactly.
 
+SYSTEM_JSON:
 ${systemText}
 
-IMPORTANT:
-1. You MUST strictly follow this system.
-2. Do not invent conventions.
-3. Use provided HCP and shape exactly.
-
 HAND:
-Cards: ${JSON.stringify(selectedHand)}
 HCP: ${hcp}
 Shape: ${shape}
 
 AUCTION:
-${auction.length
-  ? auction.map(a => `${a.seat}: ${a.bid}`).join("\n")
+${interpretedAuction.length
+  ? interpretedAuction
+      .map(a => `${a.seat} (${a.side}): ${a.bid}`)
+      .join("\n")
   : "No bids yet"}
 
-Dealer: ${dealer}
-Vulnerability: ${vulnerability}
-
-SYSTEM: Modern Standard American Yellow Card (SAYC, Weak NT style).
-
-ABSOLUTE RULES:
-
-1. You MUST analyze the entire auction in order before making any recommendation.
-2. You MUST interpret each bid seat-by-seat.
-3. You MUST determine:
-   - Partnership
-   - HCP range shown
-   - Suit length shown
-   - Forcing / non-forcing status
-4. Only AFTER full auction analysis may you recommend a bid.
-5. If you skip auction analysis, your answer is invalid.
-
---------------------------------------------------
-
-OPENING STRUCTURE:
-
-• 1♣ / 1♦ = 3+ cards, 12–21 HCP
-• 1♥ / 1♠ = 5+ cards, 12–21 HCP
-• 1NT = 15–17 balanced
-• 2NT = 20–21 balanced
-• Weak Twos = 6-card suit, 6–10 HCP
-• 2♣ = 22+ HCP or game forcing
-
-RESPONSES:
-
-• 1NT response to suit opening = 6–9 HCP, non-forcing
-• New suit at 2-level = 10+ HCP, forcing one round
-• Raises show support and defined point ranges
-• 1NT opening uses Stayman and Transfers
-
---------------------------------------------------
-
-IMPORTANT:
-
-DO NOT recount HCP.
-DO NOT recalculate distribution.
-USE the provided HCP and shape exactly.
-
---------------------------------------------------
-
-HAND DATA:
-
-Cards: ${JSON.stringify(selectedHand)}
-HCP: ${hcp}
-Shape (S-H-D-C): ${shape}
-
---------------------------------------------------
-
-AUCTION (IN ORDER):
-
-${auction.length
-  ? auction.map(a => `${a.seat}: ${a.bid}`).join("\n")
-  : "No bids yet"}
-
---------------------------------------------------
-
-TASKS:
-
-STEP 1 — Auction Analysis:
-Explain each bid sequentially with:
-• Seat
-• HCP range shown
-• Suit length shown
-• Convention name if any
-• Forcing / non-forcing status
-
-STEP 2 — Only after completing Step 1:
-Recommend the correct next bid in SAYC.
-
---------------------------------------------------
-
-STRICT JSON OUTPUT ONLY:
-
+Return STRICT JSON:
 {
   "auctionAnalysis": [
     {
       "seat": "S/W/N/E",
       "bid": "string",
-      "meaning": "brief explanation including HCP range, length, forcing status"
+      "meaning": "short meaning"
     }
   ],
   "bid": "string",
-  "explanation": "short reasoning under 30 words"
+  "explanation": "under 30 words"
 }
-
-NO markdown.
-NO commentary.
-NO skipping analysis.
-ONLY JSON.
 `;
 
     const response = await openai.responses.create({
-      model: "gpt-5.2",
-      input: prompt
-    });
+  model: "gpt-5.2",
+  input: prompt,
+  text: {
+    format: {
+      type: "json_schema",
+      name: "bridge_bid_response",
+      schema: {
+        type: "object",
+        additionalProperties: false,   // 🔴 REQUIRED
+        properties: {
+          auctionAnalysis: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,  // 🔴 REQUIRED
+              properties: {
+                seat: { type: "string" },
+                bid: { type: "string" },
+                meaning: { type: "string" }
+              },
+              required: ["seat", "bid", "meaning"]
+            }
+          },
+          bid: { type: "string" },
+          explanation: { type: "string" }
+        },
+        required: ["auctionAnalysis", "bid", "explanation"]
+      }
+    }
+  }
+});
 
     // ✅ Safer extraction (gpt-5.x structure)
     const content = response.output?.[0]?.content?.[0];
@@ -352,6 +389,55 @@ ONLY JSON.
 
   } catch (err) {
     console.error("AI ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+/* =========================================================
+   AI Explain opponents bids (EXPERIMENTAL)
+========================================================= */
+app.post("/explain-last-bid", async (req, res) => {
+  try {
+    const { auction, dealer, system } = req.body;
+
+    if (!Array.isArray(auction) || auction.length === 0) {
+      return res.json({ explanation: "" });
+    }
+
+    const systemConfig = loadSystem(system || "sayc");
+    const last = auction[auction.length - 1];
+
+    let explanation = "Standard contract bid.";
+
+    // Opening examples
+    if (auction.length === 1) {
+      if (last.bid === "1H")
+        explanation = "Opening: 5+ hearts, 12–21 HCP.";
+      else if (last.bid === "1S")
+        explanation = "Opening: 5+ spades, 12–21 HCP.";
+      else if (last.bid === "1NT")
+        explanation = "Opening: 15–17 balanced.";
+      else if (last.bid === "1C" || last.bid === "1D")
+        explanation = "Opening: 3+ cards, 12–21 HCP.";
+    }
+
+    // Response example
+    if (auction.length >= 2) {
+      const prev = auction[auction.length - 2];
+
+      if (prev.bid === "1H" && last.bid === "1S")
+        explanation = "Response: 4+ spades, 6+ HCP, forcing one round.";
+    }
+
+    if (last.bid === "P") explanation = "Pass.";
+    if (last.bid === "X") explanation = "Double: takeout or values depending on context.";
+    if (last.bid === "XX") explanation = "Redouble.";
+
+    res.json({ explanation });
+
+  } catch (err) {
+    console.error("Explain bid error:", err);
     res.status(500).json({ error: err.message });
   }
 });
