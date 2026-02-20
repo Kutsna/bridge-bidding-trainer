@@ -84,8 +84,55 @@ try {
 }
 
 // Validate result strictly
-if (!Array.isArray(cards) || cards.length < 11 ) {
-  throw new Error("Check all 13 cards are present");
+if (!Array.isArray(cards)) {
+  throw new Error("AI returned invalid format");
+}
+
+// Remove duplicates
+cards = [...new Set(cards)];
+
+if (cards.length !== 13) {
+
+  console.warn(`Expected 13 cards, got ${cards.length}. Retrying once...`);
+
+  // Retry once automatically
+  const retry = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Carefully recognize ALL 13 visible playing cards. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
+          },
+          {
+            type: "input_image",
+            image_url: base64
+          }
+        ]
+      }
+    ]
+  });
+
+  let retryText = retry.output_text.trim()
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .replace(/'/g, '"');
+
+  try {
+    cards = JSON.parse(retryText);
+    cards = [...new Set(cards)];
+  } catch {
+    console.warn("Retry failed to parse.");
+  }
+}
+
+if (cards.length !== 13) {
+  return res.status(200).json({
+    cards,
+    warning: `Only detected ${cards.length} cards. Please retake photo.`
+  });
 }
 
 res.json({ cards });
@@ -298,6 +345,8 @@ app.post("/recommend-bid-ai", async (req, res) => {
     const prompt = `
 You are a strict bridge bidding engine.
 You must follow the provided SYSTEM_JSON exactly.
+text: "The image shows a fanned bridge hand. Detect exactly 13 cards. Carefully inspect corners and partially visible ranks. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
+
 
 SYSTEM_JSON:
 ${systemText}

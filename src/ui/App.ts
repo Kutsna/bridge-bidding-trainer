@@ -830,11 +830,17 @@ function detectCardCornersOpenCV(canvas: HTMLCanvasElement) {
 ========================================================= */
 
 function toggleCard(card: HandItem) {
-  const i = selectedHand.findIndex(
-    (c) => c.rank === card.rank && c.suit === card.suit,
+
+  const index = selectedHand.findIndex(
+    c => c.rank === card.rank && c.suit === card.suit
   );
-  if (i >= 0) selectedHand.splice(i, 1);
-  else if (selectedHand.length < 13) selectedHand.push(card);
+
+  if (index >= 0) {
+    selectedHand.splice(index, 1);
+  } else if (selectedHand.length < 13) {
+    selectedHand.push(card);
+  }
+
   renderUI();
 }
 
