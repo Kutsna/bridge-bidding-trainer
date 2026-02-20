@@ -15,16 +15,37 @@
   },
 
   "responses": {
-    "afterMajorOpening": {
-      "1S": {
-        "minHCP": 6,
-        "minLength": 4,
-        "forcing": true
-      }
+  "afterOpening": {
+    "oneLevelNewSuit": {
+      "appliesTo": ["1D", "1H", "1S"],
+      "minHCP": 6,
+      "minLength": 4,
+      "forcing": true
     }
-  },
+  }
+},
 
   "rebids": {
+    "1D-1H": {
+      "1S": {
+        "minLength": 4,
+        "minHCP": 12,
+        "maxHCP": 16,
+        "description": "Natural 4+ spades, minimum"
+      },
+      "2D": {
+        "minLength": 6,
+        "minHCP": 12,
+        "maxHCP": 16,
+        "description": "Extra diamond length"
+      },
+      "1NT": {
+        "minHCP": 15,
+        "maxHCP": 17,
+        "balanced": true,
+        "description": "Balanced hand"
+      }
+    },
     "1H-1S": {
       "2C": {
         "minLength": 4,

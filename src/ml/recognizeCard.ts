@@ -49,11 +49,13 @@ export const recognizeCard = async (imageData: ImageData) => {
   if (!rankModel || !suitModel) return null;
 
   const tensor = tf.browser
-    .fromPixels(imageData)
-    .resizeBilinear([96, 96])
-    .toFloat()
-    .div(255)
-    .expandDims(0);
+  .fromPixels(imageData)
+  .toFloat()
+  .div(255)
+  .sub(0.5)
+  .mul(2)
+  .resizeBilinear([96, 96])
+  .expandDims(0);
 
   const rankPred = rankModel.predict(tensor) as tf.Tensor;
   const suitPred = suitModel.predict(tensor) as tf.Tensor;
@@ -70,6 +72,9 @@ export const recognizeCard = async (imageData: ImageData) => {
 
   console.log("Rank raw:", await rankPred.data());
   console.log("Suit raw:", await suitPred.data());
+
+  console.log("Rank probabilities:", await rankPred.data());
+  console.log("Predicted rank index:", rankIndex, "=>", RANK_CLASSES[rankIndex]);
 
   return RANK_CLASSES[rankIndex] + SUIT_CLASSES[suitIndex];
 };

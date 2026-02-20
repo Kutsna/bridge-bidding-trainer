@@ -104,7 +104,7 @@ if (cards.length !== 13) {
         content: [
           {
             type: "input_text",
-            text: "Carefully recognize ALL 13 visible playing cards. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
+            text: "The image shows a fanned bridge hand. Detect exactly 13 cards. Carefully inspect corners and partially visible ranks. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
           },
           {
             type: "input_image",
@@ -128,12 +128,10 @@ if (cards.length !== 13) {
   }
 }
 
-if (cards.length !== 13) {
-  return res.status(200).json({
-    cards,
-    warning: `Only detected ${cards.length} cards. Please retake photo.`
-  });
-}
+return res.json({
+  cards,
+  count: cards.length
+});
 
 res.json({ cards });
 
@@ -339,17 +337,56 @@ app.post("/recommend-bid-ai", async (req, res) => {
     const shape = `${distribution.S}-${distribution.H}-${distribution.D}-${distribution.C}`;
     const systemConfig = loadSystem(system || "sayc");
     const systemText = JSON.stringify(systemConfig, null, 2);
+    const formattedSystem = formatSystemForPrompt(systemConfig);
+    const requiredConventions = [
+      "Stayman",
+      "Jacoby Transfers",
+      "Jacoby 2NT",
+      "Splinters",
+      "Cappelletti",
+      "Drury",
+      "Unusual 2NT",
+      "Gerber",
+      "Fourth Suit Forcing",
+      "Blackwood",
+      "Michaels Cuebid",
+      "Takeout Doubles",
+      "Negative Doubles",
+    ];
+    const conventionNames = Object.keys(systemConfig.conventions || {});
+    const conventionList = conventionNames.length
+      ? conventionNames.join(", ")
+      : "None provided";
+    const requiredConventionList = requiredConventions.join(", ");
 
     const interpretedAuction = interpretAuction(auction, dealer);
     
     const prompt = `
 You are a strict bridge bidding engine.
-You must follow the provided SYSTEM_JSON exactly.
-text: "The image shows a fanned bridge hand. Detect exactly 13 cards. Carefully inspect corners and partially visible ranks. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
+  You must follow the provided SYSTEM_JSON exactly.
+  You must evaluate ALL listed conventions and apply any convention that is relevant to this auction.
+  If no convention applies, use the system's natural/default structure.
+  You must also evaluate the REQUIRED_CONVENTIONS list below and use those conventions whenever legally and contextually applicable.
+
+  IMPORTANT:
+  - Do not ignore convention rules listed in the system.
+  - Prioritize these conventions when they fit the auction context: Stayman, Jacoby Transfers, Jacoby 2NT, Splinters, Cappelletti, Drury, Unusual 2NT, Gerber, Fourth Suit Forcing, Blackwood, Michaels Cuebid, Takeout Doubles, Negative Doubles.
+  - Use convention names exactly as written when reporting what was applied.
+  - For each applied convention, explain WHEN it should be used and WHY it applies here.
+  - Keep final explanation under 30 words.
 
 
 SYSTEM_JSON:
 ${systemText}
+
+  SYSTEM_OVERVIEW:
+  ${formattedSystem}
+
+  CONVENTIONS_TO_EVALUATE:
+  ${conventionList}
+
+  REQUIRED_CONVENTIONS:
+  ${requiredConventionList}
 
 HAND:
 HCP: ${hcp}
@@ -369,6 +406,14 @@ Return STRICT JSON:
       "seat": "S/W/N/E",
       "bid": "string",
       "meaning": "short meaning"
+    }
+  ],
+  "appliedConventions": ["convention name"],
+  "conventionGuidance": [
+    {
+      "name": "convention name",
+      "whenToUse": "short trigger condition",
+      "whyUsedNow": "short context reason"
     }
   ],
   "bid": "string",
@@ -400,10 +445,27 @@ Return STRICT JSON:
               required: ["seat", "bid", "meaning"]
             }
           },
+          appliedConventions: {
+            type: "array",
+            items: { type: "string" }
+          },
+          conventionGuidance: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string" },
+                whenToUse: { type: "string" },
+                whyUsedNow: { type: "string" }
+              },
+              required: ["name", "whenToUse", "whyUsedNow"]
+            }
+          },
           bid: { type: "string" },
           explanation: { type: "string" }
         },
-        required: ["auctionAnalysis", "bid", "explanation"]
+        required: ["auctionAnalysis", "appliedConventions", "conventionGuidance", "bid", "explanation"]
       }
     }
   }

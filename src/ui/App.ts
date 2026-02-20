@@ -7,6 +7,7 @@ const tf = await import("@tensorflow/tfjs");
 import { recognizeCard } from "../ml/recognizeCard";
 import { loadRankModel } from "../ml/rankModel";
 import { loadSuitModel } from "../ml/suitModel";
+import { recommendBidFromAuction } from "../engine/recommendBid";
 
 /* =========================================================
    OPENCV LOADER (FOR LATER)
@@ -373,9 +374,14 @@ async function captureCards() {
       .map((c: unknown) => String(c ?? "").trim().toUpperCase())
       .filter((c: string) => /^[AKQJT98765432][SHDC]$/.test(c));
 
-    if (validCards.length !== 13) {
-      throw new Error(`Expected 13 cards, received ${validCards.length}`);
-    }
+    if (validCards.length === 0) {
+  alert("No cards detected.");
+  return;
+}
+
+if (validCards.length !== 13) {
+  console.warn(`Detected ${validCards.length} cards`);
+}
 
     selectedHand = validCards.map((c: string) => ({
       rank: c[0],
@@ -383,6 +389,10 @@ async function captureCards() {
     }));
 
     renderUI();
+
+    if (validCards.length !== 13) {
+      openDeckForCorrection();
+    }
 
   } catch (err: any) {
     console.error("FULL API ERROR:", err);
@@ -770,7 +780,15 @@ function detectCardCornersOpenCV(canvas: HTMLCanvasElement) {
   cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
   // 🔥 threshold for bright (white card area)
-  cv.threshold(gray, thresh, 200, 255, cv.THRESH_BINARY);
+  cv.adaptiveThreshold(
+  gray,
+  thresh,
+  255,
+  cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+  cv.THRESH_BINARY,
+  11,   // block size (odd number)
+  2     // constant subtraction
+);
 
   // remove small noise
   const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
@@ -1408,47 +1426,75 @@ function resetAuction() {
 }
 
 async function recommend() {
-  const selectedSystem =
-    (document.getElementById("systemSelect") as HTMLSelectElement).value;
-
   try {
+    if (selectedHand.length !== 13) {
+      alert("Please select exactly 13 cards first.");
+      return;
+    }
+    const selectedSystem =
+      (document.getElementById("systemSelect") as HTMLSelectElement).value;
+
     const response = await fetch("/recommend-bid-ai", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         selectedHand,
         auction,
         dealer: (document.getElementById("dealer") as HTMLSelectElement).value,
         vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value,
-        system: selectedSystem
-      })
+        system: selectedSystem,
+      }),
     });
 
-    console.log("AUCTION SENT:", auction);
+    if (!response.ok) {
+      throw new Error(`AI route failed: ${response.status}`);
+    }
 
     const data = await response.json();
 
-    console.log("AI RESPONSE:", data);
+    const appliedConventions = Array.isArray(data.appliedConventions)
+      ? data.appliedConventions
+      : [];
 
-    if (!response.ok) {
-      alert("AI recommendation failed.");
-      return;
-    }
+    const conventionGuidance = Array.isArray(data.conventionGuidance)
+      ? data.conventionGuidance
+      : [];
+
+    const conventionList = appliedConventions.length
+      ? appliedConventions.join(", ")
+      : "None";
+
+    const guidanceHtml = conventionGuidance.length
+      ? `<div style="margin-top:10px; font-size:26px; text-align:left; display:inline-block; max-width:1100px;">
+          ${conventionGuidance
+            .map((c: any) => `
+              <div style="margin-bottom:8px;">
+                <b>${c.name}:</b> when ${c.whenToUse}; why now: ${c.whyUsedNow}
+              </div>
+            `)
+            .join("")}
+        </div>`
+      : "";
 
     document.getElementById("output")!.innerHTML = `
-      <div style="font-size: 70px; font-weight: bold; margin-top: 10px;">
-        <div>Advised bid: ${data.bid}</div>
-        <div style="font-size: 36px; font-weight: normal; margin-top: 8px;">
-          ${data.explanation}
-        </div>
+      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${data.bid}</div>
+        <div style="margin-top: 8px;">${data.explanation}</div>
+        <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
+        ${guidanceHtml}
       </div>
     `;
-
   } catch (err) {
-    console.error("Frontend error:", err);
-    alert("AI recommendation failed.");
+    console.error("Recommendation error:", err);
+
+    const advice = recommendBidFromAuction(selectedHand, auction);
+    document.getElementById("output")!.innerHTML = `
+      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${advice.recommendedBid}</div>
+        <div style="margin-top: 8px;">${advice.explanation}</div>
+        <div style="margin-top: 10px; font-size: 28px;">AI conventions unavailable, fallback to local bid-rebid engine.</div>
+      </div>
+    `;
   }
 }
 
@@ -1725,7 +1771,30 @@ function toggleDeck() {
   }
 }
 
+function openDeckForCorrection() {
+  const wrapper = document.getElementById("deckWrapper");
+  const btn = document.getElementById("deckToggleBtn");
+
+  if (!wrapper || !btn) return;
+
+  wrapper.style.display = "block";
+  btn.style.border = "6px solid red";
+}
+
+function autoCloseDeckWhenHandComplete() {
+  if (selectedHand.length !== 13) return;
+
+  const wrapper = document.getElementById("deckWrapper");
+  const btn = document.getElementById("deckToggleBtn");
+
+  if (!wrapper || !btn) return;
+
+  wrapper.style.display = "none";
+  btn.style.border = "";
+}
+
 function renderUI() {
+  autoCloseDeckWhenHandComplete();
   document.getElementById("deck")!.innerHTML = renderDeck();
   sortHandHighToLow(selectedHand);
   document.getElementById("handView")!.innerHTML = renderHand(selectedHand);

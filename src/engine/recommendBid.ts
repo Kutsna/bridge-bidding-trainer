@@ -1,84 +1,241 @@
-import { HandFacts } from "./hand/handFacts";
-import { AuctionState } from "./auction/auctionState";
-import { BiddingRule } from "./rules/ruleTypes";
-import { evaluateRules } from "./rules/evaluateRules";
+import { computeHandFacts } from "./hand/handFacts";
+import { generateBidRebidMatrix } from "./auction/generateBidRebidMatrix";
 
-export interface BidRecommendation {
-  bid: string;
-  explanation: string;
-  ruleId: string;
-}
+export function recommendBid(hand: any[]) {
 
-export function recommendBid(
-  rules: BiddingRule[],
-  hand: HandFacts,
-  auction: AuctionState,
-): BidRecommendation | null {
+  const facts = computeHandFacts(hand);
 
-  const isOpening = auction.auction.length === 0;
-
-  if (isOpening) {
-
-    // You MUST adjust these two lines to match your HandFacts shape
-    const spadeLength = (hand as any).shape?.S ?? (hand as any).suits?.S ?? 0;
-    const heartLength = (hand as any).shape?.H ?? (hand as any).suits?.H ?? 0;
-
-    const hasFiveSpades = spadeLength >= 5;
-    const hasFiveHearts = heartLength >= 5;
-
-    // 1️⃣ PRIORITY: 5-card majors (modern style)
-    if (hand.hcp >= 12 && hand.hcp <= 21) {
-
-      if (hasFiveSpades) {
-        const rule = rules.find(r => r.bid === "1S");
-        if (rule) {
-          return {
-            bid: rule.bid,
-            explanation: rule.explanation,
-            ruleId: rule.id,
-          };
-        }
-      }
-
-      if (hasFiveHearts) {
-        const rule = rules.find(r => r.bid === "1H");
-        if (rule) {
-          return {
-            bid: rule.bid,
-            explanation: rule.explanation,
-            ruleId: rule.id,
-          };
-        }
-      }
-    }
-
-    // 2️⃣ THEN 1NT (only if no 5-card major)
-    if (
-      hand.hcp >= 15 &&
-      hand.hcp <= 17 &&
-      hand.balanced &&
-      !hasFiveSpades &&
-      !hasFiveHearts
-    ) {
-      const rule = rules.find(r => r.bid === "1NT");
-      if (rule) {
-        return {
-          bid: rule.bid,
-          explanation: rule.explanation,
-          ruleId: rule.id,
-        };
-      }
-    }
-  }
-
-  // 3️⃣ Normal rule engine fallback
-  const rule = evaluateRules(rules, hand, auction);
-
-  if (!rule) return null;
+  const matrix = generateBidRebidMatrix(facts);
 
   return {
-    bid: rule.bid,
-    explanation: rule.explanation,
-    ruleId: rule.id,
+    facts,
+    matrix
+  };
+}
+
+type AuctionBidInput = string | { bid?: string };
+
+function normalizeBid(input: AuctionBidInput): string {
+  if (typeof input === "string") return input.trim().toUpperCase();
+  return String(input?.bid ?? "").trim().toUpperCase();
+}
+
+function isCallBid(bid: string): boolean {
+  return bid.length > 0 && bid !== "P" && bid !== "X" && bid !== "XX";
+}
+
+function hasDiamondSpadeReverseValues(
+  opening: string,
+  facts: ReturnType<typeof computeHandFacts>,
+): boolean {
+  return opening === "1D" && facts.suitLengths.S >= 4 && facts.hcp >= 16 && facts.hcp <= 21;
+}
+
+function mapResponderFirstAnswerToRebid(
+  responderBid: string,
+  opening: string,
+  facts: ReturnType<typeof computeHandFacts>,
+  matrix: ReturnType<typeof generateBidRebidMatrix>,
+): string {
+  if (responderBid === "1H" || responderBid === "1S") {
+    const responderMajor = responderBid.slice(-1) as "H" | "S";
+    const openingSuit = opening.endsWith("NT") ? "NT" : opening.slice(-1);
+    const validNaturalOpeningSuit = ["C", "D", "H", "S"].includes(openingSuit);
+    const hasFourCardSupport = facts.suitLengths[responderMajor] >= 4;
+
+    if (responderBid === "1H" && hasDiamondSpadeReverseValues(opening, facts)) {
+      return "2S";
+    }
+
+    if (
+      validNaturalOpeningSuit &&
+      openingSuit !== responderMajor &&
+      hasFourCardSupport &&
+      facts.hcp >= 16 &&
+      facts.hcp <= 21
+    ) {
+      return `3${responderMajor}`;
+    }
+
+    if (
+      validNaturalOpeningSuit &&
+      openingSuit !== responderMajor &&
+      hasFourCardSupport &&
+      facts.hcp >= 12 &&
+      facts.hcp <= 15
+    ) {
+      return `2${responderMajor}`;
+    }
+
+    return matrix.rebidAfterMajor;
+  }
+  if (responderBid === "1NT") {
+    if (hasDiamondSpadeReverseValues(opening, facts)) {
+      return "2S";
+    }
+    return matrix.rebidAfter1NT;
+  }
+  if (responderBid === "2C") {
+    if (hasDiamondSpadeReverseValues(opening, facts)) {
+      return "2S";
+    }
+    return matrix.rebidAfter2C;
+  }
+  if (responderBid === "2D") {
+    if (hasDiamondSpadeReverseValues(opening, facts)) {
+      return "2S";
+    }
+    return matrix.rebidAfterTwoOverOne;
+  }
+  if (/^2[DHSC]$/.test(responderBid)) return matrix.rebidAfterTwoOverOne;
+  return matrix.rebidAfterTwoOverOne;
+}
+
+function mapResponderSecondAnswerToContinuation(
+  responderFirstAnswer: string,
+  responderSecondBid: string,
+  opening: string,
+  facts: ReturnType<typeof computeHandFacts>,
+  matrix: ReturnType<typeof generateBidRebidMatrix>,
+): string {
+  if (
+    hasDiamondSpadeReverseValues(opening, facts) &&
+    responderFirstAnswer === "1H" &&
+    responderSecondBid === "2H"
+  ) {
+    return "2S";
+  }
+
+  const openingSuit = opening.endsWith("NT") ? "NT" : opening.slice(-1);
+
+  if (responderSecondBid.endsWith("NT")) {
+    return matrix.continuationAfterResponderSecondBid.afterNotrump;
+  }
+
+  const responderSuit = responderSecondBid.slice(-1);
+  if (openingSuit !== "NT" && responderSuit === openingSuit) {
+    return matrix.continuationAfterResponderSecondBid.afterSupport;
+  }
+
+  if (/^[1-7][CDHS]$/.test(responderSecondBid)) {
+    return matrix.continuationAfterResponderSecondBid.afterNewSuit;
+  }
+
+  return matrix.continuationAfterResponderSecondBid.fallback;
+}
+
+export function recommendBidFromAuction(
+  hand: any[],
+  auction: AuctionBidInput[],
+) {
+  const facts = computeHandFacts(hand);
+  const matrix = generateBidRebidMatrix(facts);
+  const rebidAfter1H = mapResponderFirstAnswerToRebid("1H", matrix.opening, facts, matrix);
+  const rebidAfter1S = mapResponderFirstAnswerToRebid("1S", matrix.opening, facts, matrix);
+  const rebidAfter1NT = mapResponderFirstAnswerToRebid("1NT", matrix.opening, facts, matrix);
+  const rebidAfter2C = mapResponderFirstAnswerToRebid("2C", matrix.opening, facts, matrix);
+  const after1MajorDisplay =
+    rebidAfter1H === rebidAfter1S
+      ? rebidAfter1H
+      : `1H→${rebidAfter1H}, 1S→${rebidAfter1S}`;
+
+  const calls = auction.map(normalizeBid).filter(isCallBid);
+
+  if (calls.length === 0) {
+    return {
+      facts,
+      matrix,
+      couplePlan: {
+        opening: matrix.opening,
+        after1Major: after1MajorDisplay,
+        after1NT: rebidAfter1NT,
+        after2C: rebidAfter2C,
+      },
+      phase: "opening",
+      recommendedBid: matrix.opening,
+      explanation: `Opening plan: ${matrix.opening}. ${matrix.explanation}`,
+    };
+  }
+
+  if (calls.length >= 2) {
+    const responderFirstAnswer = calls[1];
+    const openerRebid = mapResponderFirstAnswerToRebid(
+      responderFirstAnswer,
+      matrix.opening,
+      facts,
+      matrix,
+    );
+
+    if (calls.length === 2) {
+      return {
+        facts,
+        matrix,
+        couplePlan: {
+          opening: matrix.opening,
+          after1Major: after1MajorDisplay,
+          after1NT: rebidAfter1NT,
+          after2C: rebidAfter2C,
+        },
+        phase: "opener-rebid-after-first-response",
+        recommendedBid: openerRebid,
+        explanation:
+          `Bid-rebid couple: open ${matrix.opening}, then after responder ${responderFirstAnswer} rebid ${openerRebid}.`,
+      };
+    }
+
+    if (calls.length >= 4) {
+      const responderSecondAnswer = calls[3];
+      const continuation = mapResponderSecondAnswerToContinuation(
+        responderFirstAnswer,
+        responderSecondAnswer,
+        matrix.opening,
+        facts,
+        matrix,
+      );
+
+      return {
+        facts,
+        matrix,
+        couplePlan: {
+          opening: matrix.opening,
+          after1Major: after1MajorDisplay,
+          after1NT: rebidAfter1NT,
+          after2C: rebidAfter2C,
+        },
+        phase: "opener-action-after-second-response",
+        recommendedBid: continuation,
+        explanation:
+          `After opener ${matrix.opening}, responder ${responderFirstAnswer}, opener ${openerRebid}, responder ${responderSecondAnswer}: ${continuation}`,
+      };
+    }
+
+    return {
+      facts,
+      matrix,
+      couplePlan: {
+        opening: matrix.opening,
+        after1Major: after1MajorDisplay,
+          after1NT: rebidAfter1NT,
+          after2C: rebidAfter2C,
+      },
+      phase: "planned-rebid",
+      recommendedBid: openerRebid,
+      explanation:
+        `Planned opener rebid remains ${openerRebid} after responder ${responderFirstAnswer}.`,
+    };
+  }
+
+  return {
+    facts,
+    matrix,
+    couplePlan: {
+      opening: matrix.opening,
+      after1Major: after1MajorDisplay,
+      after1NT: rebidAfter1NT,
+      after2C: rebidAfter2C,
+    },
+    phase: "opening",
+    recommendedBid: matrix.opening,
+    explanation: `Opening plan: ${matrix.opening}. ${matrix.explanation}`,
   };
 }
