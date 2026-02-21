@@ -2,92 +2,458 @@
   "name": "Modern SAYC",
 
   "openingStructure": {
-    "1C": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },
-    "1D": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },    
+    "1C": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "priorityOver1NT": true,
+        "type": "natural", "denyFiveCardMajor": true,
+        "description": "Open 1 Clubs with 12-21 HCP, no 5-card major."},
+    "1D": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "priorityOver1NT": true, 
+        "type": "natural", "denyFiveCardMajor": true,
+        "description": "Open 1 Diamonds with 12-21 HCP, no 5-card major."},    
     "1H": { "minHCP": 12, "maxHCP": 21, "minHearts": 5, "priorityOver1NT": true,
-        "description": "Open 1♥ with 5+ hearts and 12–21 HCP."},
+        "description": "Open 1♥ with 5+ hearts and 12-21 HCP."},
     "1S": { "minHCP": 12, "maxHCP": 21, "minSpades": 5, "priorityOver1NT": true,
-        "description": "Open 1♠ with 5+ spades and 12–21 HCP."},
+        "description": "Open 1♠ with 5+ spades and 12-21 HCP."},
     "1NT": { "minHCP": 15, "maxHCP": 17, "type": "balanced", "denyFiveCardMajor": true,
-        "description": "Open 1NT with 15–17 HCP balanced and no 5-card major."},
+        "description": "Open 1NT with 15-17 HCP balanced and no 5-card major."},
     "2C": { "minHCP": 22, "type": "strong, game forcing", 
-        "description": "Open 2C with 22+ HCP, game forcing" }
+        "description": "Open 2C with 22+ HCP, game forcing" },
+    "2D": { "minHCP": 6, "maxHCP": 10, "minDiamonds": 6, "priorityOver1NT": true,
+        "description": "Open 2♥ with 6+ diamonds and 6-10 HCP."},
+    "2H": { "minHCP": 6, "maxHCP": 10, "minHearts": 6, "priorityOver1NT": true,
+        "description": "Open 2♥ with 6+ hearts and 6-10 HCP."},
+    "2S": { "minHCP": 6, "maxHCP": 10, "minSpades": 6, "priorityOver1NT": true,
+        "description": "Open 2♠ with 6+ spades and 6-10 HCP."},
+    "2NT": { "minHCP": 18, "maxHCP": 19, "type": "balanced", "denyFiveCardMajor": true,
+        "description": "Open 2NT with 18-19 HCP balanced and no 5-card major."}
   },
 
   "responses": {
-  "afterOpening": {
-    "oneLevelNewSuit": {
-      "appliesTo": ["1D", "1H", "1S"],
-      "minHCP": 6,
-      "minLength": 4,
-      "forcing": true
-    }
-  }
-},
-
-  "rebids": {
-    "1D-1H": {
-      "1S": {
+    "globalRules": {
+      "oneLevelNewSuit": {
+        "appliesTo": ["1D", "1H", "1S"],
+        "minHCP": 6,
         "minLength": 4,
-        "minHCP": 12,
-        "maxHCP": 16,
-        "description": "Natural 4+ spades, minimum"
+        "forcing": true
       },
-      "2D": {
-        "minLength": 6,
-        "minHCP": 12,
-        "maxHCP": 16,
-        "description": "Extra diamond length"
+      "newSuitByResponderIsForcingAtOneLevel": true,
+      "directRaisesShowSupport": true,
+      "jumpRaisesAreInvitationalOrBetter": true
+    },
+    "byOpening": {
+      "1C": {
+        "firstResponse": [
+          { "bid": "1D", "minHCP": 6, "minDiamonds": 4, "forcing": true, "priority": 1 },
+          { "bid": "1H", "minHCP": 6, "minHearts": 4, "forcing": true, "priority": 2 },
+          { "bid": "1S", "minHCP": 6, "minSpades": 4, "maxHearts": 3,"forcing": true, "priority": 3 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "balanced": true, "denyFourCardMajor": true, "priority": 4 },
+          { "bid": "2C", "convention": "Inverted Minors", "minHCP": 10, "minSupport": 5, "limitRaiseOrBetter": true, "priority": 5 },
+          { "bid": "3C", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "preemptiveRaise": true, "priority": 6 }
+        ]
+      },
+      "1D": {
+        "firstResponse": [
+          { "bid": "1H", "minHCP": 6, "minHearts": 4, "forcing": true, "priority": 1 },
+          { "bid": "1S", "minHCP": 6, "minSpades": 4, "maxHearts": 3, "forcing": true, "priority": 2 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "balanced": true, "denyFourCardMajor": true, "priority": 3 },
+          { "bid": "2D", "convention": "Inverted Minors", "minHCP": 10, "minSupport": 4, "invertedMinor": true, "priority": 4 },
+          { "bid": "3D", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "preemptiveRaise": true, "priority": 5 }
+        ]
+      },
+      "1H": {
+        "firstResponse": [
+          { "bid": "1S", "minHCP": 6, "minSpades": 4, "forcing": true, "priority": 1 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "maxSpades": 3, "semiForcing": true, "priority": 2 },
+          { "bid": "2H", "minHCP": 6, "maxHCP": 9, "maxSpades": 3, "minSupport": 3, "priority": 3 },
+          { "bid": "2NT", "convention": "Jacoby 2NT", "minHCP": 13, "minSupport": 4, "forcingToGame": true, "priority": 4 },
+          { "bid": "3H", "minHCP": 10, "maxHCP": 12, "minSupport": 4, "invitational": true, "priority": 5 },
+          { "bid": "4H", "minHCP": 13, "minSupport": 4, "toGame": true, "priority": 6 }
+        ]
+      },
+      "1S": {
+        "firstResponse": [
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "semiForcing": true, "priority": 1 },
+          { "bid": "2S", "minHCP": 6, "maxHCP": 9, "minSupport": 3, "priority": 2 },
+          { "bid": "2NT", "convention": "Jacoby 2NT", "minHCP": 13, "minSupport": 4, "forcingToGame": true, "priority": 3 },
+          { "bid": "3S", "minHCP": 10, "maxHCP": 12, "minSupport": 4, "invitational": true, "priority": 4 },
+          { "bid": "4S", "minHCP": 13, "minSupport": 4, "toGame": true, "priority": 5 }
+        ]
       },
       "1NT": {
-        "minHCP": 15,
-        "maxHCP": 17,
-        "balanced": true,
-        "description": "Balanced hand"
+        "firstResponse": [
+          { "bid": "2C", "convention": "Stayman", "minHCP": 8, "asksForFourCardMajor": true, "priority": 1 },
+          { "bid": "2D", "convention": "Jacoby Transfers", "transfersTo": "hearts", "minHCP": 0, "priority": 2 },
+          { "bid": "2H", "convention": "Jacoby Transfers", "transfersTo": "spades", "minHCP": 0, "priority": 3 },
+          { "bid": "2NT", "minHCP": 8, "maxHCP": 9, "invitational": true, "priority": 4 },
+          { "bid": "3NT", "minHCP": 10, "toGame": true, "priority": 5 },
+          { "bid": "4C", "convention": "Gerber", "minHCP": 14, "slamInterest": true, "priority": 6 },
+          { "bid": "4D", "convention": "Texas Transfers", "transfersTo": "hearts", "minHearts": 6, "toGame": true, "priority": 7 },
+          { "bid": "4H", "convention": "Texas Transfers", "transfersTo": "spades", "minSpades": 6, "toGame": true, "priority": 8 }
+        ]
+      },
+      "2C": {
+        "firstResponse": [
+          { "bid": "2D", "artificial": true, "waiting": true, "default": true, "priority": 1 },
+          { "bid": "2H", "minLength": 5, "positive": true, "priority": 2 },
+          { "bid": "2S", "minLength": 5, "positive": true, "priority": 3 },
+          { "bid": "3C", "minLength": 5, "positive": true, "priority": 4 },
+          { "bid": "3D", "minLength": 5, "positive": true, "priority": 5 }
+        ]
       }
     },
-    "1H-1S": {
-      "2C": {
-        "minLength": 4,
-        "minHCP": 12,
-        "maxHCP": 18,
-        "description": "Natural, HCP12-18, no 4-card spade support"
-},
-      "2D": {
-        "minLength": 4,
-        "minHCP": 12,
-        "maxHCP": 18,
-        "description": "Natural, HCP12-18, no 4-card spade support"
-},
-      "2H": {
-        "minLength": 6,
-        "minHCP": 12,
-        "maxHCP": 18,
-        "description": "Natural, HCP12-18, 6+ hearts, no 4-card spade support"
-},
-      "2S": {
-        "minSupport": 4,
-        "minHCP": 12,
-        "maxHCP": 15,
-        "description": "Minimum with 4-card support"
+    "competitive": {
+      "afterOpponentSuitOpening": {
+        "double": {
+          "convention": "Takeout Doubles",
+          "minHCP": 12,
+          "shortnessInOpponentSuit": true,
+          "supportForUnbidSuits": true
+        },
+        "cuebid": {
+          "convention": "Michaels Cuebid",
+          "showsTwoSuits": true,
+          "typically55": true
+        },
+        "2NT": {
+          "convention": "Unusual 2NT",
+          "showsTwoLowestUnbidSuits": true,
+          "typically55": true
+        }
       },
-      "3S": {
-        "minSupport": 4,
-        "minHCP": 16,
-        "maxHCP": 18,
-        "description": "Limit raise"
+      "afterPartnerOpensAndRhoOvercalls": {
+        "double": {
+          "convention": "Negative Doubles",
+          "showsUnbidMajors": true,
+          "constructiveValues": true
+        }
       },
-      "2NT": {
-        "minHCP": 18,
-        "maxHCP": 19,
-        "balanced": true,
-        "description": "18-19 balanced, no 4-card support"
+      "afterOur1NTAndOpponentInterferes": {
+        "2C": {
+          "convention": "Cappelletti",
+          "meaning": "any one-suited hand"
+        },
+        "2D": {
+          "convention": "Cappelletti",
+          "meaning": "both majors"
+        },
+        "X": {
+          "convention": "DONT",
+          "meaning": "any one-suited hand"
+        }
+      }
+    }
+  },
+
+  "rebids": {
+    "openerRebids": {
+      "1D-1H": {
+        "1S": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 3,
+          "description": "Natural, 4+ spades"
+        },
+        "1NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 3,
+          "maxSpades": 3,
+          "balanced": true,
+          "description": "Balanced hand"
+        },
+        "2D": {
+          "minLength": 5,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Extra diamond length"
+        },
+        "2H": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "4 hearts fit"
+        },
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "Reverce. Strong hand 5 Hearts, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3D": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with long diamonds"
+        },
+        "3H": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "4 hearts fit"
+        },
+        "3S": {
+          "minSpades": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21 with 5 diamonds, 4 spades, to game"
+        }
       },
-      "3H": {
-        "minSupport": 6,
-        "minHCP": 16,
-        "extraLength": true,
-        "description": "Extra hearts, strong"
+      "1H-1S": {
+        "1NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "Balanced hand"
+        },
+        "2C": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "maxSupport": 3,
+          "description": "Natural, HCP12-18, no 4-card spade support"
+        },
+        "2D": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "maxSupport": 3,
+          "description": "Natural, HCP12-18, no 4-card spade support"
+        },
+        "2H": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural, HCP12-18, 6+ hearts, no 4-card spade support"
+        },
+        "2S": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "priorityOver1NT": true,
+          "description": "Minimum with 4-card support"
+        },
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "HCP 16-18, 4-card support"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced, no 4-card support"
+        },
+        "3H": {
+          "minHearts": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "extraLength": true,
+          "description": "Extra hearts, strong"
+        }
+      },
+      "1H-2C": {
+        "2D": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "maxSupport": 3,
+          "description": "Natural, HCP12-18, no 4-card spade support"
+        },
+        "2H": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural, HCP12-18, 6+ hearts, no 4-card spade support"
+        },
+        "2S": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "Reverse, strong hand 5 Hearts, 4 Spades"
+        },
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21, 4-card support"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced, no 4-card support"
+        },
+        "3H": {
+          "minHearts": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "extraLength": true,
+          "description": "Extra hearts, strong"
+        }
+      },
+      "1H-2NT": {
+        "3C": {
+          "convention": "Jacoby 2NT",
+          "singletonOrVoid": "clubs",
+          "description": "Shortness-showing rebid after Jacoby 2NT"
+        },
+        "3D": {
+          "convention": "Jacoby 2NT",
+          "singletonOrVoid": "diamonds",
+          "description": "Shortness-showing rebid after Jacoby 2NT"
+        },
+        "3H": {
+          "convention": "Jacoby 2NT",
+          "minimum": true,
+          "description": "Minimum opening with no shortness"
+        },
+        "3NT": {
+          "convention": "Jacoby 2NT",
+          "balancedMaximum": true,
+          "description": "Balanced maximum opener hand"
+        },
+        "4H": {
+          "convention": "Jacoby 2NT",
+          "strongNoShortness": true,
+          "description": "Strong hand without shortness"
+        }
+      },
+      "1S-2D": {
+        "2H": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural second suit, non-forcing style rebid"
+        },
+        "2S": {
+          "minSpades": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum with long spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced rebid over 2-over-1 response"
+        },
+        "3S": {
+          "minSpades": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with long spades"
+        },
+        "3D": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Support responder diamonds with 4-card fit"
+        }
+      },
+      "1S-2NT": {
+        "3C": {
+          "convention": "Jacoby 2NT",
+          "singletonOrVoid": "clubs",
+          "description": "Shortness-showing rebid after Jacoby 2NT"
+        },
+        "3D": {
+          "convention": "Jacoby 2NT",
+          "singletonOrVoid": "diamonds",
+          "description": "Shortness-showing rebid after Jacoby 2NT"
+        },
+        "3H": {
+          "convention": "Jacoby 2NT",
+          "singletonOrVoid": "hearts",
+          "description": "Shortness-showing rebid after Jacoby 2NT"
+        },
+        "3S": {
+          "convention": "Jacoby 2NT",
+          "minimum": true,
+          "description": "Minimum opening with no shortness"
+        },
+        "3NT": {
+          "convention": "Jacoby 2NT",
+          "balancedMaximum": true,
+          "description": "Balanced maximum opener hand"
+        },
+        "4S": {
+          "convention": "Jacoby 2NT",
+          "strongNoShortness": true,
+          "description": "Strong hand without shortness"
+        }
+      }
+    },
+    "responderSecondBid": {
+      "afterMajorRaise": {
+        "simpleRaise": {
+          "range": "6-9",
+          "meaning": "Competitive or constructive"
+        },
+        "limitRaise": {
+          "range": "10-12",
+          "meaning": "Invitational"
+        },
+        "gameRaise": {
+          "range": "13+",
+          "meaning": "To game"
+        }
+      },
+      "after1NTRebid": {
+        "pass": {
+          "maxHCP": 9,
+          "description": "With no game interest"
+        },
+        "invite": {
+          "bid": "2NT",
+          "minHCP": 10,
+          "maxHCP": 11,
+          "description": "Invite game"
+        },
+        "toGame": {
+          "bid": "3NT",
+          "minHCP": 12,
+          "description": "Place contract in game"
+        },
+        "newMinorForcing": {
+          "bid": "2D",
+          "convention": "New Minor Forcing",
+          "minHCP": 10,
+          "description": "Artificial ask for major fit or extra information"
+        }
+      },
+      "fourthSuitForcing": {
+        "bid": "lowestUnbidSuit",
+        "convention": "Fourth Suit Forcing",
+        "forcing": true,
+        "description": "Artificial game-force inquiry after three natural suits bid"
+      },
+      "slamTools": {
+        "blackwood": {
+          "bid": "4NT",
+          "convention": "Blackwood",
+          "description": "Ace-asking after suit agreement"
+        },
+        "gerber": {
+          "bid": "4C",
+          "convention": "Gerber",
+          "description": "Ace-asking over NT auctions"
+        },
+        "splinter": {
+          "bid": "doubleJumpShift",
+          "convention": "Splinter Bids",
+          "minSupport": 4,
+          "singletonOrVoid": true,
+          "gameForcing": true
+        }
       }
     }
   },
@@ -95,7 +461,7 @@
   "conventions": {
     "Stayman": "2C over 1NT",
     "Jacoby Transfers": "2D/2H over 1NT",
-    "Jacoby 2NT": "2NT over 1NT with 4-card major and game forcing hand",
+    "Jacoby 2NT": "2NT over 1H/1S with 4-card major and game forcing hand",
     "Texas Transfers": "4D/4H over 1NT",
     "Blackwood": "4NT asking for aces",
     "Gerber": "4C asking for aces",

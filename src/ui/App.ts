@@ -165,7 +165,9 @@ let auction: AuctionEntry[] = [];
 let selectedLevel: string | null = null;
 
 let dealer: Seat = "S";
+let handSeat: Seat = "S";
 let vulnerability: "NONE" | "NS" | "EW" | "BOTH" = "NONE";
+let interventionEnabled = false;
 
 let cameraStream: MediaStream | null = null;
 let cameraVisible = false;
@@ -174,6 +176,44 @@ type HandItem = { rank: string; suit: "S" | "H" | "D" | "C" };
 
 let selectedHand: HandItem[] = [];
 let isSelectorOpen = false;
+let aiLoadingInterval: ReturnType<typeof setInterval> | null = null;
+let latestPartnerBidExplanation = "";
+
+function stopAiLoadingAnimation() {
+  if (!aiLoadingInterval) return;
+  clearInterval(aiLoadingInterval);
+  aiLoadingInterval = null;
+}
+
+function startAiLoadingAnimation() {
+  stopAiLoadingAnimation();
+  let arrows = "";
+
+  aiLoadingInterval = setInterval(() => {
+    const loadingEl = document.getElementById("aiLoadingText");
+    if (!loadingEl) return;
+
+    arrows += ".";
+    loadingEl.textContent = `Getting data from AI ${arrows}`;
+  }, 500);
+}
+
+function renderPartnerBidExplanationLine() {
+  if (!latestPartnerBidExplanation) return "";
+  return `<div id="partnerBidExplanation" style="margin-top: 8px; font-size: 28px; color: #fff4a3;"><b>Partner bid:</b> ${latestPartnerBidExplanation}</div>`;
+}
+
+function refreshPartnerBidExplanationInOutput() {
+  const partnerLineEl = document.getElementById("partnerBidExplanation");
+  if (!partnerLineEl) return;
+
+  if (!latestPartnerBidExplanation) {
+    partnerLineEl.innerHTML = "";
+    return;
+  }
+
+  partnerLineEl.innerHTML = `<b>Partner bid:</b> ${latestPartnerBidExplanation}`;
+}
 
 /* =========================================================
    CAMERA
@@ -710,6 +750,37 @@ function orderedSeatsFromDealer(): Seat[] {
 
 function currentTurn(): Seat {
   return orderedSeatsFromDealer()[auction.length % 4];
+}
+
+function partnerOfSeat(seat: Seat): Seat {
+  return (
+    {
+      N: "S",
+      S: "N",
+      E: "W",
+      W: "E",
+    } as const
+  )[seat];
+}
+
+function isOpponentSeat(seat: Seat): boolean {
+  const partnerSeat = partnerOfSeat(handSeat);
+  return seat !== handSeat && seat !== partnerSeat;
+}
+
+function isPartnerSeat(seat: Seat): boolean {
+  return seat === partnerOfSeat(handSeat);
+}
+
+function autoPassOpponentsIfNeeded() {
+  if (interventionEnabled) return;
+
+  while (!auctionEnded() && isOpponentSeat(currentTurn())) {
+    auction.push({
+      seat: currentTurn(),
+      bid: "P",
+    });
+  }
 }
 
 function auctionEnded() {
@@ -1295,6 +1366,10 @@ function countTrailingPasses(): number {
 
 
 function addBid(bid: string) {
+  const currentSeat = currentTurn();
+  const effectiveBid =
+    !interventionEnabled && isOpponentSeat(currentSeat) ? "P" : bid;
+
   const trailingPasses = countTrailingPasses();
 
   // Find last non-pass bid
@@ -1311,7 +1386,7 @@ function addBid(bid: string) {
   // -------------------------
   // DOUBLE
   // -------------------------
-  if (bid === "X") {
+  if (effectiveBid === "X") {
 
     if (!lastBid) {
       alert("Double not allowed.");
@@ -1334,7 +1409,7 @@ function addBid(bid: string) {
   // -------------------------
   // REDOUBLE
   // -------------------------
-  if (bid === "XX") {
+  if (effectiveBid === "XX") {
 
     if (lastBid?.bid !== "X") {
       alert("Redouble only allowed after X.");
@@ -1351,8 +1426,8 @@ function addBid(bid: string) {
   // -------------------------
   // CONTRACT BIDS
   // -------------------------
-  if (bid !== "P" && bid !== "X" && bid !== "XX") {
-    if (!isHigherBid(bid)) {
+  if (effectiveBid !== "P" && effectiveBid !== "X" && effectiveBid !== "XX") {
+    if (!isHigherBid(effectiveBid)) {
       alert("Bid must be higher than previous contract.");
       return;
     }
@@ -1361,32 +1436,35 @@ function addBid(bid: string) {
   if (!auctionEnded()) {
   auction.push({
     seat: currentTurn(),
-    bid: bid
+    bid: effectiveBid
   });
 
-  // 🔹 NEW: Explain last bid instantly
-  fetch("/explain-last-bid", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      auction,
-      dealer
+  const lastEntry = auction[auction.length - 1];
+  const auctionSnapshotForPartnerExplanation = [...auction];
+
+  autoPassOpponentsIfNeeded();
+
+  if (isPartnerSeat(lastEntry.seat)) {
+    fetch("/explain-last-bid", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        auction: auctionSnapshotForPartnerExplanation,
+        dealer,
+        handSeat,
+      })
     })
-  })
-    .then(res => res.json())
-    .then(data => {
-      const output = document.getElementById("output");
-      if (output) {
-        output.innerHTML = `
-          <div style="font-size:36px; margin-top:10px;">
-            ${data.explanation}
-          </div>
-        `;
-      }
-    })
-    .catch(err => {
-      console.error("Explain error:", err);
-    });
+      .then(res => res.json())
+      .then(data => {
+        latestPartnerBidExplanation = typeof data?.explanation === "string"
+          ? data.explanation
+          : "";
+        refreshPartnerBidExplanationInOutput();
+      })
+      .catch(err => {
+        console.error("Explain error:", err);
+      });
+  }
 
   renderUI();
 }
@@ -1422,6 +1500,14 @@ function resetHand() {
 
 function resetAuction() {
   auction = [];
+  latestPartnerBidExplanation = "";
+  stopAiLoadingAnimation();
+
+  const outputEl = document.getElementById("output");
+  if (outputEl) {
+    outputEl.innerHTML = "";
+  }
+
   renderUI();
 }
 
@@ -1431,6 +1517,20 @@ async function recommend() {
       alert("Please select exactly 13 cards first.");
       return;
     }
+
+    const outputEl = document.getElementById("output");
+    if (outputEl) {
+      outputEl.innerHTML = `
+        <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+          <div id="aiLoadingText" style="font-size: 42px; font-style: italic; color: yellow; margin-bottom: 8px;">
+            Getting data from AI
+          </div>
+        </div>
+      `;
+
+      startAiLoadingAnimation();
+    }
+
     const selectedSystem =
       (document.getElementById("systemSelect") as HTMLSelectElement).value;
 
@@ -1441,6 +1541,7 @@ async function recommend() {
         selectedHand,
         auction,
         dealer: (document.getElementById("dealer") as HTMLSelectElement).value,
+        handSeat: (document.getElementById("handSeat") as HTMLSelectElement).value,
         vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value,
         system: selectedSystem,
       }),
@@ -1479,6 +1580,7 @@ async function recommend() {
     document.getElementById("output")!.innerHTML = `
       <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
         <div style="font-size: 56px; font-weight: bold;">Advised bid: ${data.bid}</div>
+        ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${data.explanation}</div>
         <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
         ${guidanceHtml}
@@ -1491,10 +1593,13 @@ async function recommend() {
     document.getElementById("output")!.innerHTML = `
       <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
         <div style="font-size: 56px; font-weight: bold;">Advised bid: ${advice.recommendedBid}</div>
+        ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${advice.explanation}</div>
         <div style="margin-top: 10px; font-size: 28px;">AI conventions unavailable, fallback to local bid-rebid engine.</div>
       </div>
     `;
+  } finally {
+    stopAiLoadingAnimation();
   }
 }
 
@@ -1613,7 +1718,7 @@ document.body.innerHTML = `
   }
 </style>
 
-<h2>Bridge Bidding Trainer (SAYC)</h2>
+<h2>BRIDGE BIDDING TRAINER</h2>
 
 <!-- CAMERA -->
 <div id="cameraArea" style="margin-bottom:12px;"></div>
@@ -1638,7 +1743,7 @@ document.body.innerHTML = `
     System:
   </label>
 
-  <select id="systemSelect" style="font-size:30px; padding:8px;">
+  <select id="systemSelect" style="font-size:24px; margin-top:12px; padding:8px;">
     <option value="sayc">SAYC</option>
     <option value="2over1">2/1 Game Forcing</option>
     <option value="acol">Acol</option>
@@ -1678,7 +1783,7 @@ document.body.innerHTML = `
     <button onclick="undoBid()" style="margin-right:10px;">Undo</button>
     <button onclick="resetAuction()">Clear Auction</button>
     
-    <button onclick="recommend()">Advice Bid</button>
+    <button onclick="recommend()" style="background:#ffeb3b; color:#000; font-weight:bold;">Advice Bid</button>
   </div>
 
 </div>
@@ -1706,7 +1811,17 @@ document.body.innerHTML = `
 
   <!-- Your Hand -->
   <div style="flex:1;min-width:300px; text-align:left;">
-    <h2>Your Hand</h2>
+    <div style="display:flex; align-items:center; justify-content:flex-start; gap:10px;">
+      <h2 style="margin:0;">Your Hand</h2>
+      <div style="display:flex; align-items:center; gap:12px;">   
+        <select id="handSeat" style="font-size:1.2em;padding:8px 20px;">
+          <option value="S" selected>South</option>
+          <option value="W">West</option>
+          <option value="N">North</option>
+          <option value="E">East</option>
+        </select>
+      </div>
+    </div>
     <div id="handView"></div>
   </div>
 
@@ -1714,7 +1829,12 @@ document.body.innerHTML = `
   <!-- Auction Buttons -->
   <div style="flex:1;min-width:100px; text-align:right;">
     
-
+<div style="margin-bottom:10px; font-size:200%; font-weight:bold;">
+    <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+      <input id="intervention" type="checkbox" ${interventionEnabled ? "checked" : ""} style="transform:scale(2.5); transform-origin:center; margin-right:12px;" />
+      Intervention
+    </label>
+  </div>
     <div id="bidButtons" style="margin-top:12px;"></div>
     
     
@@ -1805,10 +1925,26 @@ function renderUI() {
     resetAuction();
   };
 
+  (document.getElementById("handSeat") as HTMLSelectElement).onchange = (e) => {
+    handSeat = (e.target as HTMLSelectElement).value as Seat;
+    renderUI();
+  };
+
   (document.getElementById("vuln") as HTMLSelectElement).onchange = (e) => {
     vulnerability = (e.target as HTMLSelectElement).value as any;
     renderUI();
   };
+
+  const interventionCheckbox = document.getElementById("intervention") as HTMLInputElement | null;
+  if (interventionCheckbox) {
+    interventionCheckbox.onchange = (e) => {
+      interventionEnabled = (e.target as HTMLInputElement).checked;
+      if (!interventionEnabled) {
+        autoPassOpponentsIfNeeded();
+      }
+      renderUI();
+    };
+  }
 }
 
 function renderCameraArea() {

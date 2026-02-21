@@ -1,0 +1,119 @@
+{
+  "name": "Modern SAYC",
+
+  "openingStructure": {
+    "1C": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },
+    "1D": { "minHCP": 12, "maxHCP": 21, "minLength": 3, "type": "natural" },    
+    "1H": { "minHCP": 12, "maxHCP": 21, "minHearts": 5, "priorityOver1NT": true,
+        "description": "Open 1♥ with 5+ hearts and 12–21 HCP."},
+    "1S": { "minHCP": 12, "maxHCP": 21, "minSpades": 5, "priorityOver1NT": true,
+        "description": "Open 1♠ with 5+ spades and 12–21 HCP."},
+    "1NT": { "minHCP": 15, "maxHCP": 17, "type": "balanced", "denyFiveCardMajor": true,
+        "description": "Open 1NT with 15–17 HCP balanced and no 5-card major."},
+    "2C": { "minHCP": 22, "type": "strong, game forcing", 
+        "description": "Open 2C with 22+ HCP, game forcing" }
+  },
+
+  "responses": {
+  "afterOpening": {
+    "oneLevelNewSuit": {
+      "appliesTo": ["1D", "1H", "1S"],
+      "minHCP": 6,
+      "minLength": 4,
+      "forcing": true
+    }
+  }
+},
+
+  "rebids": {
+    "1D-1H": {
+      "1S": {
+        "minLength": 4,
+        "minHCP": 12,
+        "maxHCP": 16,
+        "description": "Natural 4+ spades, minimum"
+      },
+      "2D": {
+        "minLength": 6,
+        "minHCP": 12,
+        "maxHCP": 16,
+        "description": "Extra diamond length"
+      },
+      "1NT": {
+        "minHCP": 15,
+        "maxHCP": 17,
+        "balanced": true,
+        "description": "Balanced hand"
+      }
+    },
+    "1H-1S": {
+      "2C": {
+        "minLength": 4,
+        "minHCP": 12,
+        "maxHCP": 18,
+        "description": "Natural, HCP12-18, no 4-card spade support"
+},
+      "2D": {
+        "minLength": 4,
+        "minHCP": 12,
+        "maxHCP": 18,
+        "description": "Natural, HCP12-18, no 4-card spade support"
+},
+      "2H": {
+        "minLength": 6,
+        "minHCP": 12,
+        "maxHCP": 18,
+        "description": "Natural, HCP12-18, 6+ hearts, no 4-card spade support"
+},
+      "2S": {
+        "minSupport": 4,
+        "minHCP": 12,
+        "maxHCP": 15,
+        "description": "Minimum with 4-card support"
+      },
+      "3S": {
+        "minSupport": 4,
+        "minHCP": 16,
+        "maxHCP": 18,
+        "description": "Limit raise"
+      },
+      "2NT": {
+        "minHCP": 18,
+        "maxHCP": 19,
+        "balanced": true,
+        "description": "18-19 balanced, no 4-card support"
+      },
+      "3H": {
+        "minSupport": 6,
+        "minHCP": 16,
+        "extraLength": true,
+        "description": "Extra hearts, strong"
+      }
+    }
+  },
+
+  "conventions": {
+    "Stayman": "2C over 1NT",
+    "Jacoby Transfers": "2D/2H over 1NT",
+    "Jacoby 2NT": "2NT over 1NT with 4-card major and game forcing hand",
+    "Texas Transfers": "4D/4H over 1NT",
+    "Blackwood": "4NT asking for aces",
+    "Gerber": "4C asking for aces",
+    "Negative Doubles": "Double of opponent's suit opening",
+    "Takeout Doubles": "Double of opponent's suit opening with opening hand",
+    "Preemptive Openings": "2H/2S with 6-card suit and weak hand",
+    "Weak Two Bids": "2H/2S with 6-card suit and 6-10 HCP",
+    "Michaels Cuebid": "Cuebid of opponent's suit showing 5-5 in two unbid suits",
+    "Unusual 2NT": "2NT over opponent's suit showing 5-5 in the two highest unbid suits",
+    "Splinter Bids": "Double jump shift showing singleton or void and support for partner's suit",
+    "Support Doubles": "Double of partner's suit opening showing 3-card support",
+    "Inverted Minors": "1NT rebid shows 4-card minor, 2NT rebid shows 5-card minor",
+    "New Minor Forcing": "2D over 1NT asking for 3-card major support",
+    "Fourth Suit Forcing": "Bid of fourth suit at lowest level forcing to game",
+    "Relay Bids": "Artificial bids asking partner for more information",
+    "Cappelletti": "Over opponent's 1NT, 2C shows any one-suited hand, 2D shows both majors, 2H/2S show that major and a minor",
+    "DONT": "Over opponent's 1NT, double shows any one-suited hand, 2C shows clubs or diamonds, 2D shows diamonds or hearts, 2H shows hearts or spades, 2S shows spades or clubs"
+  }
+
+
+}

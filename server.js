@@ -188,6 +188,13 @@ function computeDistribution(hand) {
   return suits;
 }
 
+function isBalancedDistribution(distribution) {
+  const shape = [distribution.S, distribution.H, distribution.D, distribution.C]
+    .sort((a, b) => b - a)
+    .join("-");
+  return ["4-3-3-3", "4-4-3-2", "5-3-3-2"].includes(shape);
+}
+
 
 function formatSystemForPrompt(systemConfig) {
   let text = `SYSTEM: ${systemConfig.name}\n\n`;
@@ -222,7 +229,326 @@ function loadSystem(systemName) {
   }
 }
 
-function interpretAuction(auction, dealer) {
+function partnerOf(seat) {
+  return {
+    N: "S",
+    S: "N",
+    E: "W",
+    W: "E",
+  }[seat] || "N";
+}
+
+function isContractBid(bid) {
+  return bid !== "P" && bid !== "X" && bid !== "XX";
+}
+
+function normalizeAuctionEntries(auction, dealer) {
+  const seats = ["W", "N", "E", "S"];
+  const dealerIndex = seats.indexOf(dealer);
+
+  function seatAt(i) {
+    return seats[(dealerIndex + i) % 4];
+  }
+
+  return auction.map((entry, index) => ({
+    index,
+    seat: entry.seat || seatAt(index),
+    bid: entry.bid,
+  }));
+}
+
+function deriveHandRole(auction, dealer, handSeat = "S") {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const partnerSeat = partnerOf(handSeat);
+
+  const firstContract = entries.find((e) => isContractBid(e.bid));
+  const firstHandAction = entries.find((e) => e.seat === handSeat && e.bid !== "P");
+
+  if (!firstHandAction) {
+    return {
+      role: "not-yet-involved",
+      firstHandActionIndex: -1,
+      partnerSeat,
+    };
+  }
+
+  if (firstContract && firstHandAction.index === firstContract.index) {
+    return {
+      role: "opener",
+      firstHandActionIndex: firstHandAction.index,
+      partnerSeat,
+    };
+  }
+
+  if (firstContract) {
+    if (firstContract.seat === partnerSeat) {
+      return {
+        role: "responder",
+        firstHandActionIndex: firstHandAction.index,
+        partnerSeat,
+      };
+    }
+
+    if (firstContract.seat !== handSeat && firstContract.seat !== partnerSeat) {
+      return {
+        role: "overcaller",
+        firstHandActionIndex: firstHandAction.index,
+        partnerSeat,
+      };
+    }
+  }
+
+  return {
+    role: "opener",
+    firstHandActionIndex: firstHandAction.index,
+    partnerSeat,
+  };
+}
+
+function bidSuit(bid) {
+  if (typeof bid !== "string") return null;
+  const suit = bid[bid.length - 1];
+  return ["S", "H", "D", "C"].includes(suit) ? suit : null;
+}
+
+function toLevel(bid) {
+  if (typeof bid !== "string") return 99;
+  const level = Number.parseInt(bid[0], 10);
+  return Number.isFinite(level) ? level : 99;
+}
+
+function turnSeatForIndex(dealer, index) {
+  const seats = ["W", "N", "E", "S"];
+  const dealerIndex = seats.indexOf(dealer);
+  if (dealerIndex < 0) return "S";
+  return seats[(dealerIndex + index) % 4];
+}
+
+function entryMatchesRule({
+  entry,
+  hcp,
+  distribution,
+  openingBid,
+  supportSuit,
+}) {
+  if (entry.minHCP !== undefined && hcp < entry.minHCP) return false;
+  if (entry.maxHCP !== undefined && hcp > entry.maxHCP) return false;
+
+  const proposedSuit = bidSuit(entry.bid);
+
+  if (entry.minLength !== undefined && proposedSuit) {
+    if (distribution[proposedSuit] < entry.minLength) return false;
+  }
+
+  if (entry.minSupport !== undefined) {
+    const fitSuit = supportSuit || bidSuit(openingBid);
+    if (!fitSuit || distribution[fitSuit] < entry.minSupport) return false;
+  }
+
+  if (entry.maxSupport !== undefined) {
+    const fitSuit = supportSuit || bidSuit(openingBid);
+    if (!fitSuit || distribution[fitSuit] > entry.maxSupport) return false;
+  }
+
+  if (entry.minSpades !== undefined && distribution.S < entry.minSpades) return false;
+  if (entry.minHearts !== undefined && distribution.H < entry.minHearts) return false;
+  if (entry.minDiamonds !== undefined && distribution.D < entry.minDiamonds) return false;
+  if (entry.minClubs !== undefined && distribution.C < entry.minClubs) return false;
+
+  if (entry.maxSpades !== undefined && distribution.S > entry.maxSpades) return false;
+  if (entry.maxHearts !== undefined && distribution.H > entry.maxHearts) return false;
+
+  if (entry.balanced === true && !isBalancedDistribution(distribution)) return false;
+  if (entry.denyFourCardMajor === true && (distribution.S >= 4 || distribution.H >= 4)) return false;
+  if (entry.denyFiveCardMajor === true && (distribution.S >= 5 || distribution.H >= 5)) return false;
+
+  return true;
+}
+
+function buildRuleAdvice({ interpretedAuction, chosenBid, entry, systemConfig }) {
+  const appliedConventions = entry.convention ? [entry.convention] : [];
+  const conventionDescription = entry.convention
+    ? (systemConfig?.conventions?.[entry.convention] || "System convention")
+    : "Natural system rule";
+
+  return {
+    auctionAnalysis: interpretedAuction.map((a) => ({ seat: a.seat, bid: a.bid, meaning: a.meaning })),
+    appliedConventions,
+    conventionGuidance: entry.convention
+      ? [
+          {
+            name: entry.convention,
+            whenToUse: conventionDescription,
+            whyUsedNow: entry.description || `Rule conditions match for ${chosenBid}.`,
+          },
+        ]
+      : [],
+    bid: chosenBid,
+    explanation: entry.description || `System rule match: bid ${chosenBid}.`,
+  };
+}
+
+function minorSuitStrength(hand, targetSuit) {
+  const honorPoints = { A: 4, K: 3, Q: 2, J: 1, T: 0.5 };
+  let total = 0;
+
+  for (const card of hand || []) {
+    const cardStr = extractCardString(card);
+    if (!cardStr) continue;
+    const suit = cardStr[cardStr.length - 1];
+    if (suit !== targetSuit) continue;
+
+    const rank = cardStr[0];
+    total += honorPoints[rank] || 0;
+  }
+
+  return total;
+}
+
+function derivePartnershipPriorityBid({
+  selectedHand,
+  auction,
+  dealer,
+  handSeat = "S",
+  hcp,
+  distribution,
+  interpretedAuction,
+  systemConfig,
+}) {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const partnerSeat = partnerOf(handSeat);
+  const currentTurnSeat = turnSeatForIndex(dealer, entries.length);
+  if (currentTurnSeat !== handSeat) return null;
+
+  const firstContract = entries.find((e) => isContractBid(e.bid));
+
+  if (!firstContract) {
+    const openingEntries = Object.entries(systemConfig?.openingStructure || {});
+    const openingCandidates = [];
+
+    for (const [openingBid, openingRule] of openingEntries) {
+      const ruleEntry = { bid: openingBid, ...openingRule };
+      if (entryMatchesRule({ entry: ruleEntry, hcp, distribution, openingBid })) {
+        openingCandidates.push({ openingBid, ruleEntry });
+      }
+    }
+
+    if (openingCandidates.length === 0) return null;
+
+    const oneNTCandidate = openingCandidates.find((c) => c.openingBid === "1NT");
+    if (oneNTCandidate && hcp >= 15 && hcp <= 17) {
+      return buildRuleAdvice({
+        interpretedAuction,
+        chosenBid: oneNTCandidate.openingBid,
+        entry: oneNTCandidate.ruleEntry,
+        systemConfig,
+      });
+    }
+
+    const hasOneC = openingCandidates.some((c) => c.openingBid === "1C");
+    const hasOneD = openingCandidates.some((c) => c.openingBid === "1D");
+
+    if (hasOneC && hasOneD) {
+      let preferredMinor = "1C";
+
+      if (distribution.D === 3 && distribution.C === 3) {
+        preferredMinor = "1C";
+      } else if (distribution.D === 4 && distribution.C === 4) {
+        const diamondStrength = minorSuitStrength(selectedHand, "D");
+        const clubStrength = minorSuitStrength(selectedHand, "C");
+        preferredMinor = diamondStrength >= clubStrength ? "1D" : "1C";
+      } else {
+        preferredMinor = distribution.D > distribution.C ? "1D" : "1C";
+      }
+
+      const chosenMinor = openingCandidates.find((c) => c.openingBid === preferredMinor);
+
+      if (chosenMinor) {
+        return buildRuleAdvice({
+          interpretedAuction,
+          chosenBid: chosenMinor.openingBid,
+          entry: chosenMinor.ruleEntry,
+          systemConfig,
+        });
+      }
+    }
+
+    const firstCandidate = openingCandidates[0];
+    return buildRuleAdvice({
+      interpretedAuction,
+      chosenBid: firstCandidate.openingBid,
+      entry: firstCandidate.ruleEntry,
+      systemConfig,
+    });
+  }
+
+  const hasCompetition = entries.some(
+    (e) => e.index > firstContract.index && e.seat !== handSeat && e.seat !== partnerSeat && e.bid !== "P",
+  );
+  if (hasCompetition) return null;
+
+  const ourNonPassBids = entries.filter((e) => e.seat === handSeat && e.bid !== "P");
+
+  if (firstContract.seat === partnerSeat && ourNonPassBids.length === 0) {
+    const opening = firstContract.bid;
+    const responseRules = (systemConfig?.responses?.byOpening?.[opening]?.firstResponse || [])
+      .slice()
+      .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999) || toLevel(a.bid) - toLevel(b.bid));
+
+    for (const rule of responseRules) {
+      if (entryMatchesRule({
+        entry: rule,
+        hcp,
+        distribution,
+        openingBid: opening,
+        supportSuit: bidSuit(opening),
+      })) {
+        return buildRuleAdvice({
+          interpretedAuction,
+          chosenBid: rule.bid,
+          entry: rule,
+          systemConfig,
+        });
+      }
+    }
+  }
+
+  if (firstContract.seat === handSeat && ourNonPassBids.length === 1) {
+    const openingBid = ourNonPassBids[0].bid;
+    const partnerResponse = entries.find(
+      (e) => e.index > firstContract.index && e.seat === partnerSeat && e.bid !== "P" && isContractBid(e.bid),
+    );
+
+    if (partnerResponse) {
+      const sequenceKey = `${openingBid}-${partnerResponse.bid}`;
+      const rebidRules = systemConfig?.rebids?.openerRebids?.[sequenceKey];
+
+      if (rebidRules && typeof rebidRules === "object") {
+        for (const [rebid, rule] of Object.entries(rebidRules)) {
+          const ruleEntry = { bid: rebid, ...(rule || {}) };
+          if (entryMatchesRule({
+            entry: ruleEntry,
+            hcp,
+            distribution,
+            openingBid,
+            supportSuit: bidSuit(partnerResponse.bid),
+          })) {
+            return buildRuleAdvice({
+              interpretedAuction,
+              chosenBid: rebid,
+              entry: ruleEntry,
+              systemConfig,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function interpretAuction(auction, dealer, handSeat = "S") {
 
   const seats = ["W", "N", "E", "S"];
   const dealerIndex = seats.indexOf(dealer);
@@ -240,10 +566,13 @@ function interpretAuction(auction, dealer) {
     }[seat];
   }
 
+  const handContext = deriveHandRole(auction, dealer, handSeat);
+
   return auction.map((entry, i) => {
 
     const seat = entry.seat || seatAt(i);
-    const side = (seat === "S" || seat === "N") ? "Us" : "Opp";
+    const partnerSeat = partnerOf(handSeat);
+    const side = (seat === handSeat || seat === partnerSeat) ? "Us" : "Opp";
 
     const bid = entry.bid;
     let meaning = "Unknown";
@@ -275,12 +604,23 @@ function interpretAuction(auction, dealer) {
         meaning = "HCP 8–16, Clubs length 5+";
     }
 
+    if (seat === handSeat && bid !== "P") {
+      if (handContext.role === "opener") {
+        meaning = `Your hand as opener: ${meaning}`;
+      } else if (handContext.role === "responder") {
+        meaning = `Your hand as responder: ${meaning}`;
+      } else if (handContext.role === "overcaller") {
+        meaning = `Your hand as overcaller: ${meaning}`;
+      }
+    }
+
     return {
       seat,
       seatName: seatFullName(seat),
       side,
       bid,
-      meaning
+      meaning,
+      handRole: handContext.role,
     };
   });
 }
@@ -291,7 +631,7 @@ function interpretAuction(auction, dealer) {
 
 app.post("/explain-last-bid", (req, res) => {
   try {
-    const { auction, dealer } = req.body;
+    const { auction, dealer, handSeat } = req.body;
 
     if (!Array.isArray(auction) || typeof dealer !== "string") {
       return res.status(400).json({ error: "Missing auction data" });
@@ -301,7 +641,7 @@ app.post("/explain-last-bid", (req, res) => {
       return res.json({ explanation: "" });
     }
 
-    const interpreted = interpretAuction(auction, dealer);
+    const interpreted = interpretAuction(auction, dealer, handSeat || "S");
     const last = interpreted[interpreted.length - 1];
 
     res.json({
@@ -319,7 +659,7 @@ app.post("/explain-last-bid", (req, res) => {
 ========================================================= */
 app.post("/recommend-bid-ai", async (req, res) => {
   try {
-    const { selectedHand, auction, dealer, vulnerability, system } = req.body;
+    const { selectedHand, auction, dealer, handSeat, vulnerability, system } = req.body;
     console.log("AUCTION RECEIVED:", JSON.stringify(auction, null, 2));
 
     if (
@@ -359,7 +699,23 @@ app.post("/recommend-bid-ai", async (req, res) => {
       : "None provided";
     const requiredConventionList = requiredConventions.join(", ");
 
-    const interpretedAuction = interpretAuction(auction, dealer);
+    const interpretedAuction = interpretAuction(auction, dealer, handSeat || "S");
+    const handContext = deriveHandRole(auction, dealer, handSeat || "S");
+    const partnerSeat = handContext.partnerSeat;
+    const deterministicAdvice = derivePartnershipPriorityBid({
+      selectedHand,
+      auction,
+      dealer,
+      handSeat: handSeat || "S",
+      hcp,
+      distribution,
+      interpretedAuction,
+      systemConfig,
+    });
+
+    if (deterministicAdvice) {
+      return res.json(deterministicAdvice);
+    }
     
     const prompt = `
 You are a strict bridge bidding engine.
@@ -391,6 +747,16 @@ ${systemText}
 HAND:
 HCP: ${hcp}
 Shape: ${shape}
+Hand cards: ${selectedHand.map((card) => extractCardString(card)).filter(Boolean).join(" ")}
+Suit lengths: S=${distribution.S}, H=${distribution.H}, D=${distribution.D}, C=${distribution.C}
+Our seat: ${handSeat || "S"}
+Partner seat: ${partnerSeat}
+Our role in auction: ${handContext.role}
+
+Interpret our bids according to this role:
+- opener: opening/rebid logic
+- responder: response/continuation logic
+- overcaller: competitive overcall/double logic
 
 AUCTION:
 ${interpretedAuction.length
@@ -510,7 +876,7 @@ Return STRICT JSON:
 ========================================================= */
 app.post("/explain-last-bid", async (req, res) => {
   try {
-    const { auction, dealer, system } = req.body;
+    const { auction, dealer, handSeat, system } = req.body;
 
     if (!Array.isArray(auction) || auction.length === 0) {
       return res.json({ explanation: "" });
