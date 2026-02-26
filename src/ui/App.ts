@@ -387,9 +387,146 @@ function drawArcFanGuides(canvas: HTMLCanvasElement) {
 }
 
 function closeCamera() {
+  try {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+  } catch {}
+
+  cameraStream = null;
   cameraVisible = false;
   renderCameraArea();
   renderUI();
+}
+
+async function shutdownCameraSession() {
+  try {
+    const track = cameraStream?.getVideoTracks()?.[0] as any;
+    if (track?.getCapabilities?.().torch) {
+      await track.applyConstraints({ advanced: [{ torch: false }] });
+    }
+  } catch {}
+
+  try {
+    cameraStream?.getTracks().forEach((t) => t.stop());
+  } catch {}
+
+  cameraStream = null;
+  cameraVisible = false;
+  renderCameraArea();
+}
+
+function normalizeDetectedCardTokens(tokens: string[]): HandItem[] {
+  const normalizeCardToken = (value: string): string | null => {
+    const raw = String(value || "").trim().toUpperCase();
+    if (!raw) return null;
+
+    const compact = raw
+      .replace(/\s+/g, "")
+      .replace("♠", "S")
+      .replace("♥", "H")
+      .replace("♦", "D")
+      .replace("♣", "C");
+
+    const directMatch = compact.match(/^(10|[AKQJT98765432])([SHDC])$/);
+    if (directMatch) {
+      const rank = directMatch[1] === "10" ? "T" : directMatch[1];
+      return `${rank}${directMatch[2]}`;
+    }
+
+    const reversedMatch = compact.match(/^([SHDC])(10|[AKQJT98765432])$/);
+    if (reversedMatch) {
+      const rank = reversedMatch[2] === "10" ? "T" : reversedMatch[2];
+      return `${rank}${reversedMatch[1]}`;
+    }
+
+    return null;
+  };
+
+  const seen = new Set<string>();
+  const normalized: HandItem[] = [];
+
+  for (const tokenRaw of tokens) {
+    const token = normalizeCardToken(String(tokenRaw || ""));
+    if (!token) continue;
+    if (seen.has(token)) continue;
+
+    seen.add(token);
+    normalized.push({
+      rank: token[0],
+      suit: token[1] as "S" | "H" | "D" | "C",
+    });
+  }
+
+  return normalized;
+}
+
+async function recognizeCardsLocally(canvas: HTMLCanvasElement): Promise<HandItem[]> {
+  const corners = detectCardCornersOpenCV(canvas)
+    .slice()
+    .sort((a, b) => a.x - b.x || a.y - b.y)
+    .slice(0, CARD_COUNT);
+
+  if (corners.length < 10) {
+    return [];
+  }
+
+  const tokens: string[] = [];
+
+  for (const corner of corners) {
+    const crop = document.createElement("canvas");
+    crop.width = Math.max(24, Math.floor(corner.w * 0.65));
+    crop.height = Math.max(24, Math.floor(corner.h * 0.65));
+
+    const cropCtx = crop.getContext("2d");
+    if (!cropCtx) continue;
+
+    cropCtx.drawImage(
+      canvas,
+      corner.x,
+      corner.y,
+      corner.w,
+      corner.h,
+      0,
+      0,
+      crop.width,
+      crop.height,
+    );
+
+    let mlRank: string | null = null;
+    let mlSuit: "S" | "H" | "D" | "C" | null = null;
+    let mlRankConfidence = 0;
+    let mlCombinedConfidence = 0;
+
+    try {
+      const imageData = cropCtx.getImageData(0, 0, crop.width, crop.height);
+      const mlResult = await recognizeCard(imageData);
+      if (mlResult) {
+        mlRank = mlResult.rank;
+        mlSuit = mlResult.suit;
+        mlRankConfidence = mlResult.rankConfidence;
+        mlCombinedConfidence = Math.min(mlResult.rankConfidence, mlResult.suitConfidence);
+      }
+    } catch {}
+
+    const heuristicRank = detectRank(crop) ?? guessRankByInk(crop);
+    const heuristicSuit = detectSuit(crop);
+
+    let finalRank = mlRank && mlCombinedConfidence >= 0.6 ? mlRank : (heuristicRank || mlRank || "2");
+
+    const mlCanRescueTenQueen =
+      mlRank &&
+      (mlRank === "T" || mlRank === "Q") &&
+      mlRankConfidence >= 0.38;
+
+    if (mlCanRescueTenQueen && finalRank !== mlRank) {
+      finalRank = mlRank as string;
+    }
+
+    const finalSuit = mlSuit && mlCombinedConfidence >= 0.6 ? mlSuit : (heuristicSuit || mlSuit || "S");
+
+    tokens.push(`${finalRank}${finalSuit}`);
+  }
+
+  return normalizeDetectedCardTokens(tokens);
 }
 
 async function captureCards() {
@@ -441,6 +578,13 @@ async function captureCards() {
   formData.append("image", blob);
 
   try {
+    const localCards = await recognizeCardsLocally(canvas);
+    if (localCards.length === CARD_COUNT) {
+      selectedHand = sortHandHighToLow(localCards);
+      renderUI();
+      return;
+    }
+
     const response = await fetch("/analyze-cards", {
       method: "POST",
       body: formData,
@@ -458,50 +602,32 @@ async function captureCards() {
     }
 
     const validCards = parsed.cards
-      .map((c: unknown) => String(c ?? "").trim().toUpperCase())
-      .filter((c: string) => /^[AKQJT98765432][SHDC]$/.test(c));
+      .map((c: unknown) => String(c ?? ""));
+    const normalizedCards = normalizeDetectedCardTokens(validCards);
 
-    if (validCards.length === 0) {
+    if (normalizedCards.length === 0) {
   alert("No cards detected.");
   return;
 }
 
-if (validCards.length !== 13) {
-  console.warn(`Detected ${validCards.length} cards`);
+if (normalizedCards.length !== 13) {
+  console.warn(`Detected ${normalizedCards.length} normalized cards`);
 }
 
-    selectedHand = validCards.map((c: string) => ({
-      rank: c[0],
-      suit: c[1] as "S" | "H" | "D" | "C",
-    }));
+    selectedHand = sortHandHighToLow(normalizedCards);
 
     renderUI();
 
-    if (validCards.length !== 13) {
+    if (normalizedCards.length !== 13) {
       openDeckForCorrection();
     }
 
   } catch (err: any) {
     console.error("FULL API ERROR:", err);
     alert("API call failed: " + err.message);
+  } finally {
+    await shutdownCameraSession();
   }
-
-  // Turn off torch safely
-  try {
-    const track = cameraStream?.getVideoTracks()?.[0] as any;
-    if (track?.getCapabilities?.().torch) {
-      await track.applyConstraints({ advanced: [{ torch: false }] });
-    }
-  } catch {}
-
-  // Stop camera safely
-  try {
-    cameraStream?.getTracks().forEach((t) => t.stop());
-  } catch {}
-
-  cameraStream = null;
-  cameraVisible = false;
-  renderCameraArea();
 }
 
 
@@ -640,24 +766,91 @@ function loadRankTemplates() {
   });
 }
 
+function createRankRegionCanvas(source: HTMLCanvasElement): HTMLCanvasElement {
+  const rankRegion = document.createElement("canvas");
+  const srcW = source.width;
+  const srcH = source.height;
+
+  const regionX = 0;
+  const regionY = 0;
+  const regionW = Math.max(10, Math.floor(srcW * 0.72));
+  const regionH = Math.max(10, Math.floor(srcH * 0.58));
+
+  rankRegion.width = regionW;
+  rankRegion.height = regionH;
+
+  const regionCtx = rankRegion.getContext("2d");
+  if (regionCtx) {
+    regionCtx.drawImage(
+      source,
+      regionX,
+      regionY,
+      regionW,
+      regionH,
+      0,
+      0,
+      regionW,
+      regionH,
+    );
+  }
+
+  return rankRegion;
+}
+
+function disambiguateTenVsQueen(rankRegion: HTMLCanvasElement, fallback: "T" | "Q"): "T" | "Q" {
+  const probe = document.createElement("canvas");
+  probe.width = rankRegion.width;
+  probe.height = rankRegion.height;
+
+  const probeCtx = probe.getContext("2d");
+  if (!probeCtx) return fallback;
+
+  probeCtx.drawImage(rankRegion, 0, 0);
+  binarize(probe, 150);
+
+  const data = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+  const h = probe.height;
+
+  let topInk = 0;
+  let midInk = 0;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < probe.width; x++) {
+      const idx = (y * probe.width + x) * 4;
+      const isDark = data[idx] < 128;
+      if (!isDark) continue;
+
+      if (y < h * 0.24) topInk++;
+      if (y >= h * 0.3 && y < h * 0.68) midInk++;
+    }
+  }
+
+  if (topInk > midInk * 1.22) return "T";
+  if (midInk > topInk * 1.1) return "Q";
+  return fallback;
+}
+
 function detectRank(canvas: HTMLCanvasElement): string | null {
   if (!rankTemplatesReady) return null;
 
-  binarize(canvas);
+  const rankRegion = createRankRegionCanvas(canvas);
+  binarize(rankRegion);
 
-  const ctx = canvas.getContext("2d")!;
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const ctx = rankRegion.getContext("2d")!;
+  const data = ctx.getImageData(0, 0, rankRegion.width, rankRegion.height).data;
 
   let bestRank: string | null = null;
   let bestScore = Infinity;
+  let tenScore = Infinity;
+  let queenScore = Infinity;
 
   for (const r of ALL_RANKS) {
     const tmpl = rankTemplates[r];
     if (!tmpl.complete) continue;
 
     const tCanvas = document.createElement("canvas");
-    tCanvas.width = canvas.width;
-    tCanvas.height = canvas.height;
+    tCanvas.width = rankRegion.width;
+    tCanvas.height = rankRegion.height;
 
     const tCtx = tCanvas.getContext("2d")!;
     tCtx.drawImage(tmpl, 0, 0, tCanvas.width, tCanvas.height);
@@ -674,13 +867,26 @@ function detectRank(canvas: HTMLCanvasElement): string | null {
       bestScore = diff;
       bestRank = r;
     }
+
+    if (r === "T") tenScore = diff;
+    if (r === "Q") queenScore = diff;
   }
 
   // 🔥 CRITICAL FILTER — WITHOUT THIS YOU GET TTTTT
-  const MAX_DIFF = canvas.width * canvas.height * 30;
+  const MAX_DIFF = rankRegion.width * rankRegion.height * 30;
 
   if (bestScore > MAX_DIFF) {
     return null;
+  }
+
+  const tenQueenClose =
+    Number.isFinite(tenScore) &&
+    Number.isFinite(queenScore) &&
+    Math.abs(tenScore - queenScore) <= Math.max(tenScore, queenScore) * 0.08;
+
+  if (tenQueenClose) {
+    const fallback = tenScore <= queenScore ? "T" : "Q";
+    return disambiguateTenVsQueen(rankRegion, fallback);
   }
 
   return bestRank;
@@ -720,12 +926,20 @@ function recognizeCardsFromCanvas(canvas: HTMLCanvasElement) {
 }
 
 function guessRankByInk(canvas: HTMLCanvasElement): string {
-  const ctx = canvas.getContext("2d")!;
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const rankRegion = createRankRegionCanvas(canvas);
+  const ctx = rankRegion.getContext("2d")!;
+  const img = ctx.getImageData(0, 0, rankRegion.width, rankRegion.height).data;
 
   let ink = 0;
   for (let i = 0; i < img.length; i += 4) {
     if (img[i] < 120) ink++;
+  }
+
+  const area = Math.max(1, rankRegion.width * rankRegion.height);
+  const inkRatio = ink / area;
+
+  if (inkRatio > 0.3 && inkRatio < 0.38) {
+    return disambiguateTenVsQueen(rankRegion, "Q");
   }
 
   if (ink > 1800) return "A";

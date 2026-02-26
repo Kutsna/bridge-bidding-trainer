@@ -42,6 +42,13 @@ const RANK_CLASSES = [
 
 const SUIT_CLASSES = ["S","H","D","C"];
 
+export type RecognizeCardResult = {
+  rank: string;
+  suit: "S" | "H" | "D" | "C";
+  rankConfidence: number;
+  suitConfidence: number;
+};
+
 export const recognizeCard = async (imageData: ImageData) => {
   const rankModel = getRankModel();
   const suitModel = getSuitModel();
@@ -60,21 +67,25 @@ export const recognizeCard = async (imageData: ImageData) => {
   const rankPred = rankModel.predict(tensor) as tf.Tensor;
   const suitPred = suitModel.predict(tensor) as tf.Tensor;
 
-  const rankData = await rankPred.data();
-  const suitData = await suitPred.data();
+  const rankData = Array.from(await rankPred.data());
+  const suitData = Array.from(await suitPred.data());
 
   tensor.dispose();
   rankPred.dispose();
   suitPred.dispose();
 
-  const rankIndex = rankData.indexOf(Math.max(...rankData));
-  const suitIndex = suitData.indexOf(Math.max(...suitData));
+  const rankBest = Math.max(...rankData);
+  const suitBest = Math.max(...suitData);
 
-  console.log("Rank raw:", await rankPred.data());
-  console.log("Suit raw:", await suitPred.data());
+  const rankIndex = rankData.indexOf(rankBest);
+  const suitIndex = suitData.indexOf(suitBest);
 
-  console.log("Rank probabilities:", await rankPred.data());
-  console.log("Predicted rank index:", rankIndex, "=>", RANK_CLASSES[rankIndex]);
+  if (rankIndex < 0 || suitIndex < 0) return null;
 
-  return RANK_CLASSES[rankIndex] + SUIT_CLASSES[suitIndex];
+  return {
+    rank: RANK_CLASSES[rankIndex],
+    suit: SUIT_CLASSES[suitIndex] as "S" | "H" | "D" | "C",
+    rankConfidence: Number(rankBest || 0),
+    suitConfidence: Number(suitBest || 0),
+  } as RecognizeCardResult;
 };

@@ -37,103 +37,161 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
     }
 
     const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    const normalizeCardToken = (value) => {
+      const raw = String(value || "").trim().toUpperCase();
+      if (!raw) return null;
 
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: "Recognize all visible playing cards. Return ONLY JSON array like ['AS','KH','QD']"
-            },
-            {
-              type: "input_image",
-              image_url: base64
-            }
-          ]
-        }
-      ]
-    });
+      const compact = raw
+        .replace(/\s+/g, "")
+        .replace("♠", "S")
+        .replace("♥", "H")
+        .replace("♦", "D")
+        .replace("♣", "C");
 
-const text = response.output_text.trim();
-
-let cards;
-
-try {
-  // Try normal JSON first
-  cards = JSON.parse(text);
-} catch (e) {
-  console.warn("Invalid JSON from AI, attempting cleanup...");
-
-  // Fix common GPT formatting mistakes
-  const cleaned = text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .replace(/'/g, '"')          // single → double quotes
-    .replace(/,\s*]/g, "]")      // trailing commas
-    .trim();
-
-  try {
-    cards = JSON.parse(cleaned);
-  } catch (err) {
-    console.error("Still invalid JSON after cleanup:", cleaned);
-    throw new Error("AI returned invalid JSON format");
-  }
-}
-
-// Validate result strictly
-if (!Array.isArray(cards)) {
-  throw new Error("AI returned invalid format");
-}
-
-// Remove duplicates
-cards = [...new Set(cards)];
-
-if (cards.length !== 13) {
-
-  console.warn(`Expected 13 cards, got ${cards.length}. Retrying once...`);
-
-  // Retry once automatically
-  const retry = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: "The image shows a fanned bridge hand. Detect exactly 13 cards. Carefully inspect corners and partially visible ranks. Return ONLY JSON array like [\"AS\",\"KH\",\"QD\"]"
-          },
-          {
-            type: "input_image",
-            image_url: base64
-          }
-        ]
+      const directMatch = compact.match(/^(10|[AKQJT98765432])([SHDC])$/);
+      if (directMatch) {
+        const rank = directMatch[1] === "10" ? "T" : directMatch[1];
+        return `${rank}${directMatch[2]}`;
       }
-    ]
-  });
 
-  let retryText = retry.output_text.trim()
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .replace(/'/g, '"');
+      const reversedMatch = compact.match(/^([SHDC])(10|[AKQJT98765432])$/);
+      if (reversedMatch) {
+        const rank = reversedMatch[2] === "10" ? "T" : reversedMatch[2];
+        return `${rank}${reversedMatch[1]}`;
+      }
 
-  try {
-    cards = JSON.parse(retryText);
-    cards = [...new Set(cards)];
-  } catch {
-    console.warn("Retry failed to parse.");
-  }
-}
+      return null;
+    };
 
-return res.json({
-  cards,
-  count: cards.length
-});
+    const normalizeCards = (rawCards) => {
+      const cleaned = Array.isArray(rawCards) ? rawCards : [];
+      return [...new Set(
+        cleaned
+          .map((card) => normalizeCardToken(card))
+          .filter(Boolean),
+      )];
+    };
 
-res.json({ cards });
+    const parseCardPayload = (rawText) => {
+      const cleaned = String(rawText || "")
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .replace(/'/g, '"')
+        .replace(/,\s*]/g, "]")
+        .trim();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        return [];
+      }
+
+      if (Array.isArray(parsed)) {
+        return normalizeCards(parsed);
+      }
+
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.cards)) {
+        return normalizeCards(parsed.cards);
+      }
+
+      return [];
+    };
+
+    const runVisionPass = async ({ model, instruction }) => {
+      const response = await openai.chat.completions.create({
+        model,
+        temperature: 0,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "bridge_cards",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                cards: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+              },
+              required: ["cards"],
+            },
+          },
+        },
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: instruction,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: base64,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const text = response?.choices?.[0]?.message?.content || "";
+      return parseCardPayload(text);
+    };
+
+    const attempts = [];
+
+    attempts.push(await runVisionPass({
+      model: "gpt-4o",
+      instruction: [
+        "Read this bridge hand photo and return exactly visible cards.",
+        "Output strict JSON object: {\"cards\":[\"AS\",\"KH\",\"QD\"]}",
+        "Use ranks A,K,Q,J,T,9..2 and suits S,H,D,C.",
+        "No duplicate cards. No explanations.",
+      ].join(" "),
+    }));
+
+    if (attempts[0].length !== 13) {
+      attempts.push(await runVisionPass({
+        model: "gpt-4o",
+        instruction: [
+          "This is a fanned bridge hand. Detect exactly 13 cards if possible.",
+          "Carefully inspect partially visible top-left corners.",
+          "If uncertain, prefer cards that are clearly visible.",
+          "Return strict JSON object: {\"cards\":[...]} only.",
+        ].join(" "),
+      }));
+    }
+
+    if (!attempts.some((cards) => cards.length === 13)) {
+      attempts.push(await runVisionPass({
+        model: "gpt-4.1-mini",
+        instruction: [
+          "Detect cards from this bridge hand image.",
+          "Return strict JSON object: {\"cards\":[...]}.",
+          "Use only valid card tokens like AS, KH, TD.",
+        ].join(" "),
+      }));
+    }
+
+    const scoreCards = (cards) => {
+      const validCountScore = cards.length;
+      const thirteenBonus = cards.length === 13 ? 100 : 0;
+      return thirteenBonus + validCountScore;
+    };
+
+    const cards = attempts
+      .slice()
+      .sort((a, b) => scoreCards(b) - scoreCards(a))[0] || [];
+
+    if (cards.length !== 13) {
+      console.warn(`Card scan did not reach 13 cards. Best attempt count: ${cards.length}`);
+    }
+
+    return res.json({ cards, count: cards.length });
 
   } catch (err) {
     console.error("Recognition error:", err);
