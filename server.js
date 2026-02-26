@@ -317,6 +317,65 @@ function toLevel(bid) {
   return Number.isFinite(level) ? level : 99;
 }
 
+function normalizeBidText(bid) {
+  return String(bid || "").trim().toUpperCase();
+}
+
+function isContractCall(bid) {
+  return /^[1-7](C|D|H|S|NT)$/.test(normalizeBidText(bid));
+}
+
+function contractOrderValue(bid) {
+  const normalized = normalizeBidText(bid);
+  if (!isContractCall(normalized)) return -1;
+  const level = Number.parseInt(normalized[0], 10);
+  const strain = normalized.slice(1);
+  const strainOrder = { C: 0, D: 1, H: 2, S: 3, NT: 4 };
+  return level * 5 + strainOrder[strain];
+}
+
+function seatSide(seat, handSeat) {
+  const partnerSeat = partnerOf(handSeat);
+  return seat === handSeat || seat === partnerSeat ? "us" : "opp";
+}
+
+function getLegalCalls(auction, dealer, handSeat = "S") {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const currentSeat = turnSeatForIndex(dealer, entries.length);
+  if (currentSeat !== handSeat) return [];
+
+  const allContracts = [];
+  const strains = ["C", "D", "H", "S", "NT"];
+  for (let level = 1; level <= 7; level++) {
+    for (const strain of strains) {
+      allContracts.push(`${level}${strain}`);
+    }
+  }
+
+  const lastContractEntry = [...entries].reverse().find((entry) => isContractCall(entry.bid));
+  const lastContractOrder = lastContractEntry ? contractOrderValue(lastContractEntry.bid) : -1;
+  const legalContracts = allContracts.filter((bid) => contractOrderValue(bid) > lastContractOrder);
+
+  const legalCalls = ["P", ...legalContracts];
+
+  const lastNonPass = [...entries].reverse().find((entry) => normalizeBidText(entry.bid) !== "P");
+  if (!lastNonPass) return legalCalls;
+
+  const currentSide = seatSide(currentSeat, handSeat);
+  const lastSide = seatSide(lastNonPass.seat, handSeat);
+  const lastBid = normalizeBidText(lastNonPass.bid);
+
+  if (isContractCall(lastBid) && lastSide === "opp") {
+    legalCalls.push("X");
+  }
+
+  if (lastBid === "X" && lastSide === "opp") {
+    legalCalls.push("XX");
+  }
+
+  return [...new Set(legalCalls)];
+}
+
 function turnSeatForIndex(dealer, index) {
   const seats = ["W", "N", "E", "S"];
   const dealerIndex = seats.indexOf(dealer);
@@ -357,6 +416,29 @@ function entryMatchesRule({
 
   if (entry.maxSpades !== undefined && distribution.S > entry.maxSpades) return false;
   if (entry.maxHearts !== undefined && distribution.H > entry.maxHearts) return false;
+  if (entry.maxDiamonds !== undefined && distribution.D > entry.maxDiamonds) return false;
+  if (entry.maxClubs !== undefined && distribution.C > entry.maxClubs) return false;
+
+  if (entry.singletonOrVoid !== undefined) {
+    const shortnessSuitRaw = String(entry.singletonOrVoid).trim().toUpperCase();
+    const suitMap = {
+      S: "S",
+      SPADE: "S",
+      SPADES: "S",
+      H: "H",
+      HEART: "H",
+      HEARTS: "H",
+      D: "D",
+      DIAMOND: "D",
+      DIAMONDS: "D",
+      C: "C",
+      CLUB: "C",
+      CLUBS: "C",
+    };
+    const shortnessSuit = suitMap[shortnessSuitRaw] || null;
+    if (!shortnessSuit) return false;
+    if (distribution[shortnessSuit] > 1) return false;
+  }
 
   if (entry.balanced === true && !isBalancedDistribution(distribution)) return false;
   if (entry.denyFourCardMajor === true && (distribution.S >= 4 || distribution.H >= 4)) return false;
@@ -403,6 +485,89 @@ function minorSuitStrength(hand, targetSuit) {
   }
 
   return total;
+}
+
+function countAces(hand) {
+  let aces = 0;
+  for (const card of hand || []) {
+    const cardStr = extractCardString(card);
+    if (!cardStr) continue;
+    if (cardStr[0] === "A") aces++;
+  }
+  return aces;
+}
+
+function latestPartnershipSuit(entries, handSeat, partnerSeat) {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.seat !== handSeat && entry.seat !== partnerSeat) continue;
+    const suit = bidSuit(entry.bid);
+    if (suit) return suit;
+  }
+  return null;
+}
+
+function formatHcpRange(rule) {
+  if (rule.minHCP !== undefined && rule.maxHCP !== undefined) return `${rule.minHCP}-${rule.maxHCP} HCP`;
+  if (rule.minHCP !== undefined) return `${rule.minHCP}+ HCP`;
+  if (rule.maxHCP !== undefined) return `up to ${rule.maxHCP} HCP`;
+  return null;
+}
+
+function describeResponderRule(openingBid, responseBid, systemConfig) {
+  const firstResponseRules = systemConfig?.responses?.byOpening?.[openingBid]?.firstResponse;
+  if (!Array.isArray(firstResponseRules)) {
+    return "Responder meaning not mapped in current system. [Confidence: Low | Ambiguity: High]";
+  }
+
+  const normalizedBid = normalizeBidText(responseBid);
+  const exactRule = firstResponseRules.find((rule) => normalizeBidText(rule?.bid) === normalizedBid);
+
+  if (exactRule) {
+    const parts = [];
+
+    if (exactRule.convention) {
+      parts.push(`${exactRule.convention}`);
+    } else if (exactRule.artificial) {
+      parts.push("Artificial response");
+    } else {
+      parts.push("Natural response");
+    }
+
+    const hcpText = formatHcpRange(exactRule);
+    if (hcpText) parts.push(hcpText);
+
+    if (exactRule.minSupport !== undefined) parts.push(`${exactRule.minSupport}+ trump support`);
+    if (exactRule.minLength !== undefined) parts.push(`${exactRule.minLength}+ card suit`);
+    if (exactRule.minSpades !== undefined) parts.push(`${exactRule.minSpades}+ spades`);
+    if (exactRule.minHearts !== undefined) parts.push(`${exactRule.minHearts}+ hearts`);
+    if (exactRule.minDiamonds !== undefined) parts.push(`${exactRule.minDiamonds}+ diamonds`);
+    if (exactRule.minClubs !== undefined) parts.push(`${exactRule.minClubs}+ clubs`);
+
+    if (exactRule.forcingToGame) parts.push("game forcing");
+    else if (exactRule.forcing) parts.push("forcing one round");
+    else if (exactRule.semiForcing) parts.push("semi-forcing");
+    else if (exactRule.invitational) parts.push("invitational");
+
+    if (exactRule.transfersTo) parts.push(`transfer to ${exactRule.transfersTo}`);
+    if (exactRule.waiting) parts.push("waiting response");
+
+    return `${parts.join(", ")}. [Confidence: High | Ambiguity: Low]`;
+  }
+
+  if (/^1[CDHS]$/.test(normalizedBid) && /^1[CDHS]$/.test(normalizeBidText(openingBid))) {
+    return "Likely one-level new-suit response (typically forcing, 6+ HCP, 4+ suit). [Confidence: Medium | Ambiguity: Medium]";
+  }
+
+  return "Responder bid not found in first-response table for this opening. [Confidence: Low | Ambiguity: High]";
+}
+
+function toShortMeaningText(meaning) {
+  const cleaned = String(meaning || "")
+    .replace(/\s*\[Confidence:[^\]]+\]\s*/g, "")
+    .trim();
+
+  return cleaned || "Responder meaning not mapped in current system.";
 }
 
 function derivePartnershipPriorityBid({
@@ -524,6 +689,7 @@ function derivePartnershipPriorityBid({
       const rebidRules = systemConfig?.rebids?.openerRebids?.[sequenceKey];
 
       if (rebidRules && typeof rebidRules === "object") {
+        const candidateMatches = [];
         for (const [rebid, rule] of Object.entries(rebidRules)) {
           const ruleEntry = { bid: rebid, ...(rule || {}) };
           if (entryMatchesRule({
@@ -533,13 +699,53 @@ function derivePartnershipPriorityBid({
             openingBid,
             supportSuit: bidSuit(partnerResponse.bid),
           })) {
-            return buildRuleAdvice({
-              interpretedAuction,
-              chosenBid: rebid,
-              entry: ruleEntry,
-              systemConfig,
-            });
+            candidateMatches.push({ rebid, ruleEntry });
           }
+        }
+
+        if (candidateMatches.length > 0) {
+          const sortCandidates = (a, b) => {
+            const aPriority = a.ruleEntry.priority ?? Number.MAX_SAFE_INTEGER;
+            const bPriority = b.ruleEntry.priority ?? Number.MAX_SAFE_INTEGER;
+            if (aPriority !== bPriority) return aPriority - bPriority;
+
+            const aOrder = isContractCall(a.rebid) ? contractOrderValue(a.rebid) : Number.MAX_SAFE_INTEGER;
+            const bOrder = isContractCall(b.rebid) ? contractOrderValue(b.rebid) : Number.MAX_SAFE_INTEGER;
+            return aOrder - bOrder;
+          };
+
+          const partnerSuit = bidSuit(partnerResponse.bid);
+          const partnerLevel = toLevel(partnerResponse.bid);
+
+          if (partnerSuit && Number.isFinite(partnerLevel)) {
+            const supportRaiseCandidates = candidateMatches.filter((candidate) => {
+              const candidateSuit = bidSuit(candidate.rebid);
+              const candidateLevel = toLevel(candidate.rebid);
+              return candidateSuit === partnerSuit && Number.isFinite(candidateLevel) && candidateLevel > partnerLevel;
+            });
+
+            if (supportRaiseCandidates.length > 0) {
+              const singleRaise = supportRaiseCandidates
+                .filter((candidate) => toLevel(candidate.rebid) === partnerLevel + 1)
+                .sort(sortCandidates)[0];
+
+              const chosenSupportRaise = singleRaise || supportRaiseCandidates.sort(sortCandidates)[0];
+              return buildRuleAdvice({
+                interpretedAuction,
+                chosenBid: chosenSupportRaise.rebid,
+                entry: chosenSupportRaise.ruleEntry,
+                systemConfig,
+              });
+            }
+          }
+
+          const chosenCandidate = candidateMatches.sort(sortCandidates)[0];
+          return buildRuleAdvice({
+            interpretedAuction,
+            chosenBid: chosenCandidate.rebid,
+            entry: chosenCandidate.ruleEntry,
+            systemConfig,
+          });
         }
       }
     }
@@ -548,7 +754,7 @@ function derivePartnershipPriorityBid({
   return null;
 }
 
-function interpretAuction(auction, dealer, handSeat = "S") {
+function interpretAuction(auction, dealer, handSeat = "S", systemConfig = null) {
 
   const seats = ["W", "N", "E", "S"];
   const dealerIndex = seats.indexOf(dealer);
@@ -567,6 +773,17 @@ function interpretAuction(auction, dealer, handSeat = "S") {
   }
 
   const handContext = deriveHandRole(auction, dealer, handSeat);
+  const normalizedEntries = normalizeAuctionEntries(auction, dealer);
+  const openingEntry = normalizedEntries.find((entry) => isContractBid(normalizeBidText(entry.bid)));
+  const responderSeat = openingEntry ? partnerOf(openingEntry.seat) : null;
+  const firstResponderEntry = openingEntry && responderSeat
+    ? normalizedEntries.find(
+        (entry) =>
+          entry.index > openingEntry.index &&
+          entry.seat === responderSeat &&
+          isContractBid(normalizeBidText(entry.bid)),
+      )
+    : null;
 
   return auction.map((entry, i) => {
 
@@ -574,7 +791,7 @@ function interpretAuction(auction, dealer, handSeat = "S") {
     const partnerSeat = partnerOf(handSeat);
     const side = (seat === handSeat || seat === partnerSeat) ? "Us" : "Opp";
 
-    const bid = entry.bid;
+    const bid = normalizeBidText(entry.bid);
     let meaning = "Unknown";
 
     // PASS
@@ -583,13 +800,22 @@ function interpretAuction(auction, dealer, handSeat = "S") {
     }
 
     // OPENING BIDS
-    else if (i === 0) {
+    else if (openingEntry && i === openingEntry.index) {
       if (bid === "1C" || bid === "1D")
         meaning = "HCP 12–21, length 3+";
       if (bid === "1H" || bid === "1S")
         meaning = "HCP 12–21, length 5+";
       if (bid === "1NT")
         meaning = "HCP 15–17, balanced";
+    }
+
+    if (
+      firstResponderEntry &&
+      i === firstResponderEntry.index &&
+      openingEntry &&
+      systemConfig
+    ) {
+      meaning = describeResponderRule(openingEntry.bid, bid, systemConfig);
     }
 
     // SIMPLE OVERCALL (after opponent opening)
@@ -631,7 +857,7 @@ function interpretAuction(auction, dealer, handSeat = "S") {
 
 app.post("/explain-last-bid", (req, res) => {
   try {
-    const { auction, dealer, handSeat } = req.body;
+    const { auction, dealer, handSeat, system } = req.body;
 
     if (!Array.isArray(auction) || typeof dealer !== "string") {
       return res.status(400).json({ error: "Missing auction data" });
@@ -641,11 +867,98 @@ app.post("/explain-last-bid", (req, res) => {
       return res.json({ explanation: "" });
     }
 
-    const interpreted = interpretAuction(auction, dealer, handSeat || "S");
+    const systemConfig = loadSystem(system || "sayc");
+    const interpreted = interpretAuction(auction, dealer, handSeat || "S", systemConfig);
     const last = interpreted[interpreted.length - 1];
+    const normalizedEntries = normalizeAuctionEntries(auction, dealer);
+    const lastEntry = normalizedEntries[normalizedEntries.length - 1];
+    const effectiveHandSeat = handSeat || "S";
+    const partnerSeat = partnerOf(effectiveHandSeat);
+
+    let meaning = last?.meaning || "Unknown";
+    let partnerHcpRange = "HCP unknown";
+
+    if (
+      lastEntry &&
+      lastEntry.seat === partnerSeat &&
+      isContractBid(normalizeBidText(lastEntry.bid))
+    ) {
+      const ourOpeningEntry = normalizedEntries.find(
+        (entry) =>
+          entry.seat === effectiveHandSeat &&
+          isContractBid(normalizeBidText(entry.bid)),
+      );
+
+      if (ourOpeningEntry && lastEntry.index > ourOpeningEntry.index) {
+        const firstResponseRules = systemConfig?.responses?.byOpening?.[normalizeBidText(ourOpeningEntry.bid)]?.firstResponse;
+        if (Array.isArray(firstResponseRules)) {
+          const responderRule = firstResponseRules.find(
+            (rule) => normalizeBidText(rule?.bid) === normalizeBidText(lastEntry.bid),
+          );
+          if (responderRule && typeof responderRule === "object") {
+            partnerHcpRange = formatHcpRange(responderRule) || partnerHcpRange;
+          }
+        }
+
+        meaning = describeResponderRule(
+          normalizeBidText(ourOpeningEntry.bid),
+          normalizeBidText(lastEntry.bid),
+          systemConfig,
+        );
+      }
+
+      const partnerOpeningEntry = normalizedEntries.find(
+        (entry) =>
+          entry.seat === partnerSeat &&
+          isContractBid(normalizeBidText(entry.bid)),
+      );
+
+      const ourResponseToPartnerOpening = partnerOpeningEntry
+        ? normalizedEntries.find(
+            (entry) =>
+              entry.index > partnerOpeningEntry.index &&
+              entry.seat === effectiveHandSeat &&
+              isContractBid(normalizeBidText(entry.bid)),
+          )
+        : null;
+
+      if (
+        partnerOpeningEntry &&
+        ourResponseToPartnerOpening &&
+        lastEntry.index > ourResponseToPartnerOpening.index
+      ) {
+        const sequenceKey = `${normalizeBidText(partnerOpeningEntry.bid)}-${normalizeBidText(ourResponseToPartnerOpening.bid)}`;
+        const openerRebidRule = systemConfig?.rebids?.openerRebids?.[sequenceKey]?.[normalizeBidText(lastEntry.bid)];
+
+        if (openerRebidRule && typeof openerRebidRule === "object") {
+          partnerHcpRange = formatHcpRange(openerRebidRule) || partnerHcpRange;
+          meaning = openerRebidRule.description || meaning;
+        }
+      }
+
+      if (partnerOpeningEntry && lastEntry.index === partnerOpeningEntry.index) {
+        const openingRule = systemConfig?.openingStructure?.[normalizeBidText(lastEntry.bid)];
+        if (openingRule && typeof openingRule === "object") {
+          partnerHcpRange = formatHcpRange(openingRule) || partnerHcpRange;
+        }
+      }
+    }
+
+    if (!meaning || meaning === "Unknown") {
+      meaning = "Responder meaning not mapped in current system.";
+    }
+
+    const shortMeaning = toShortMeaningText(meaning);
+    const partnerBidHistory = normalizedEntries
+      .filter((entry) => entry.seat === partnerSeat && normalizeBidText(entry.bid) !== "P")
+      .map((entry) => normalizeBidText(entry.bid));
+
+    const historySuffix = partnerBidHistory.length > 1
+      ? ` Partner sequence: ${partnerBidHistory.join(" → ")}.`
+      : "";
 
     res.json({
-      explanation: `${last.seatName} (${last.side}) bids ${last.bid}: ${last.meaning}`
+      explanation: `${last.seatName} (${last.side}) bids ${last.bid}: ${shortMeaning}. Partner HCP: ${partnerHcpRange}.${historySuffix}`
     });
 
   } catch (err) {
@@ -659,7 +972,7 @@ app.post("/explain-last-bid", (req, res) => {
 ========================================================= */
 app.post("/recommend-bid-ai", async (req, res) => {
   try {
-    const { selectedHand, auction, dealer, handSeat, vulnerability, system } = req.body;
+    const { selectedHand, auction, dealer, handSeat, vulnerability, system, allowAI = true, forceAI = false } = req.body;
     console.log("AUCTION RECEIVED:", JSON.stringify(auction, null, 2));
 
     if (
@@ -699,9 +1012,10 @@ app.post("/recommend-bid-ai", async (req, res) => {
       : "None provided";
     const requiredConventionList = requiredConventions.join(", ");
 
-    const interpretedAuction = interpretAuction(auction, dealer, handSeat || "S");
+    const interpretedAuction = interpretAuction(auction, dealer, handSeat || "S", systemConfig);
     const handContext = deriveHandRole(auction, dealer, handSeat || "S");
     const partnerSeat = handContext.partnerSeat;
+    const legalCalls = getLegalCalls(auction, dealer, handSeat || "S");
     const deterministicAdvice = derivePartnershipPriorityBid({
       selectedHand,
       auction,
@@ -713,8 +1027,98 @@ app.post("/recommend-bid-ai", async (req, res) => {
       systemConfig,
     });
 
-    if (deterministicAdvice) {
-      return res.json(deterministicAdvice);
+    if (deterministicAdvice && !forceAI) {
+      return res.json({ source: "bbt", ...deterministicAdvice });
+    }
+
+    if (!allowAI) {
+      return res.json({
+        source: "none",
+        bid: null,
+        explanation: "No bid-rebid couple matched in the selected system JSON. Click Ask AI.",
+        appliedConventions: [],
+        conventionGuidance: [],
+        auctionAnalysis: interpretedAuction.map((a) => ({ seat: a.seat, bid: a.bid, meaning: a.meaning })),
+      });
+    }
+
+    let aiHandAnalysis = {
+      hcp,
+      suitLengths: distribution,
+      shape,
+      honorSummary: "Derived from card list",
+      notes: "Local computed fallback hand analysis",
+    };
+
+    try {
+      const handAnalysisPrompt = `
+You are a bridge hand evaluator. Analyze only OUR hand and return strict JSON.
+
+OUR_HAND_CARDS: ${selectedHand.map((card) => extractCardString(card)).filter(Boolean).join(" ")}
+OUR_HCP_COMPUTED: ${hcp}
+OUR_SHAPE_COMPUTED: ${shape}
+
+Return STRICT JSON:
+{
+  "hcp": number,
+  "suitLengths": { "S": number, "H": number, "D": number, "C": number },
+  "shape": "string",
+  "honorSummary": "short honor/controls summary",
+  "notes": "short bidding-relevant hand notes"
+}
+`;
+
+      const handAnalysisResponse = await openai.responses.create({
+        model: "gpt-5.2",
+        input: handAnalysisPrompt,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "bridge_hand_analysis",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                hcp: { type: "number" },
+                suitLengths: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    S: { type: "number" },
+                    H: { type: "number" },
+                    D: { type: "number" },
+                    C: { type: "number" },
+                  },
+                  required: ["S", "H", "D", "C"],
+                },
+                shape: { type: "string" },
+                honorSummary: { type: "string" },
+                notes: { type: "string" },
+              },
+              required: ["hcp", "suitLengths", "shape", "honorSummary", "notes"],
+            },
+          },
+        },
+      });
+
+      const handAnalysisContent = handAnalysisResponse.output?.[0]?.content?.[0]?.text;
+      if (handAnalysisContent) {
+        const parsedHand = JSON.parse(handAnalysisContent);
+        aiHandAnalysis = {
+          hcp: Number(parsedHand.hcp ?? hcp),
+          suitLengths: {
+            S: Number(parsedHand?.suitLengths?.S ?? distribution.S),
+            H: Number(parsedHand?.suitLengths?.H ?? distribution.H),
+            D: Number(parsedHand?.suitLengths?.D ?? distribution.D),
+            C: Number(parsedHand?.suitLengths?.C ?? distribution.C),
+          },
+          shape: String(parsedHand.shape ?? shape),
+          honorSummary: String(parsedHand.honorSummary ?? ""),
+          notes: String(parsedHand.notes ?? ""),
+        };
+      }
+    } catch (handErr) {
+      console.warn("Hand analysis pre-step failed, using local computed facts:", handErr?.message || handErr);
     }
     
     const prompt = `
@@ -730,6 +1134,7 @@ You are a strict bridge bidding engine.
   - Use convention names exactly as written when reporting what was applied.
   - For each applied convention, explain WHEN it should be used and WHY it applies here.
   - Keep final explanation under 30 words.
+  - You MUST return one bid from LEGAL_CALLS only.
 
 
 SYSTEM_JSON:
@@ -749,9 +1154,12 @@ HCP: ${hcp}
 Shape: ${shape}
 Hand cards: ${selectedHand.map((card) => extractCardString(card)).filter(Boolean).join(" ")}
 Suit lengths: S=${distribution.S}, H=${distribution.H}, D=${distribution.D}, C=${distribution.C}
+AI_HAND_ANALYSIS_JSON: ${JSON.stringify(aiHandAnalysis)}
 Our seat: ${handSeat || "S"}
 Partner seat: ${partnerSeat}
 Our role in auction: ${handContext.role}
+
+Before choosing a bid, rely on AI_HAND_ANALYSIS_JSON to verify that the recommendation matches OUR hand.
 
 Interpret our bids according to this role:
 - opener: opening/rebid logic
@@ -764,6 +1172,9 @@ ${interpretedAuction.length
       .map(a => `${a.seat} (${a.side}): ${a.bid}`)
       .join("\n")
   : "No bids yet"}
+
+LEGAL_CALLS:
+${legalCalls.join(", ")}
 
 Return STRICT JSON:
 {
@@ -862,7 +1273,14 @@ Return STRICT JSON:
       });
     }
 
-    res.json(parsed);
+    const parsedBid = normalizeBidText(parsed?.bid);
+    if (!legalCalls.includes(parsedBid)) {
+      return res.status(502).json({
+        error: "ChatGPT returned an illegal call for this auction. No non-AI fallback is used in Ask AI mode.",
+      });
+    }
+
+    res.json({ source: "ai", ...parsed, bid: parsedBid });
 
   } catch (err) {
     console.error("AI ERROR:", err);
@@ -874,7 +1292,7 @@ Return STRICT JSON:
 /* =========================================================
    AI Explain opponents bids (EXPERIMENTAL)
 ========================================================= */
-app.post("/explain-last-bid", async (req, res) => {
+app.post("/explain-last-bid-ai-experimental", async (req, res) => {
   try {
     const { auction, dealer, handSeat, system } = req.body;
 

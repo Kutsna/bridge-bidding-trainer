@@ -34,6 +34,8 @@
         "minLength": 4,
         "forcing": true
       },
+      "newUnbidSuitByAnySideIsOneRoundForcing": true,
+      "openerReverseIsForcingToGame": true,
       "newSuitByResponderIsForcingAtOneLevel": true,
       "directRaisesShowSupport": true,
       "jumpRaisesAreInvitationalOrBetter": true
@@ -41,38 +43,58 @@
     "byOpening": {
       "1C": {
         "firstResponse": [
-          { "bid": "1D", "minHCP": 6, "minDiamonds": 4, "forcing": true, "priority": 1 },
+          { "bid": "1D", "minHCP": 6, "minDiamonds": 4, "forcing": true, "priority": 3 },
           { "bid": "1H", "minHCP": 6, "minHearts": 4, "forcing": true, "priority": 2 },
-          { "bid": "1S", "minHCP": 6, "minSpades": 4, "maxHearts": 3,"forcing": true, "priority": 3 },
-          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "balanced": true, "denyFourCardMajor": true, "priority": 4 },
-          { "bid": "2C", "convention": "Inverted Minors", "minHCP": 10, "minSupport": 5, "limitRaiseOrBetter": true, "priority": 5 },
-          { "bid": "3C", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "preemptiveRaise": true, "priority": 6 }
+          { "bid": "1S", "minHCP": 6, "minSpades": 4, "maxHearts": 3,"forcing": true, "priority": 2 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 9, "balanced": true, "denyFourCardMajor": true, "priority": 5 },
+          { "bid": "2C", "convention": "Inverted Minors", "minHCP": 10, "minSupport": 5, "denyFourCardMajor": true, "limitRaiseOrBetter": true, "priority": 4 },
+          { "bid": "2D", "minHCP": 17, "minDiamonds": 5, "denyFourCardMajor": true, "forcingToGame": true, "priority": 1 },
+          { "bid": "2H", "minHCP": 17, "minHearts": 5, "maxSpades": 3, "forcingToGame": true, "priority": 1 },
+          { "bid": "2S", "minHCP": 17, "minSpades": 5, "maxHearts": 3, "forcingToGame": true, "priority": 1 },          
+          { "bid": "2NT", "minHCP": 10, "maxHCP": 12, "balanced": true, "denyFourCardMajor": true },          
+          { "bid": "3C", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "denyFourCardMajor": true, "preemptiveRaise": true }
         ]
       },
       "1D": {
         "firstResponse": [
-          { "bid": "1H", "minHCP": 6, "minHearts": 4, "forcing": true, "priority": 1 },
+          { "bid": "1H", "minHCP": 6, "minHearts": 4, "forcing": true, "priority": 2 },
           { "bid": "1S", "minHCP": 6, "minSpades": 4, "maxHearts": 3, "forcing": true, "priority": 2 },
-          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "balanced": true, "denyFourCardMajor": true, "priority": 3 },
-          { "bid": "2D", "convention": "Inverted Minors", "minHCP": 10, "minSupport": 4, "invertedMinor": true, "priority": 4 },
-          { "bid": "3D", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "preemptiveRaise": true, "priority": 5 }
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 9, "balanced": true, "denyFourCardMajor": true, "priority": 4 },
+          { "bid": "2C",  "minHCP": 10, "minClubs": 4, "maxDiamonds": 3, "denyFourCardMajor": true, "forcing": true, "priority": 2 },
+          { "bid": "2D", "convention": "Inverted Minors", "minHCP": 10, "denyFourCardMajor": true, "minSupport": 4, "invertedMinor": true, "priority": 3 },
+          { "bid": "2H", "minHCP": 17, "minHearts": 5, "maxSpades": 3, "forcingToGame": true, "priority": 1 },          
+          { "bid": "2S", "minHCP": 17, "minSpades": 5, "maxHearts": 3, "forcingToGame": true, "priority": 1 },                    
+          { "bid": "2NT", "minHCP": 10, "maxHCP": 12, "balanced": true, "denyFourCardMajor": true },          
+          { "bid": "3C",  "minHCP": 17, "minClubs": 5, "denyFourCardMajor": true, "forcingToGame": true, "priority": 1 },
+          { "bid": "3D", "minHCP": 6, "maxHCP": 9, "minSupport": 5, "denyFourCardMajor": true, "preemptiveRaise": true }
         ]
       },
       "1H": {
         "firstResponse": [
-          { "bid": "1S", "minHCP": 6, "minSpades": 4, "forcing": true, "priority": 1 },
-          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "maxSpades": 3, "semiForcing": true, "priority": 2 },
+          { "bid": "1S", "minHCP": 6, "minSpades": 4, "forcing": true, "priority": 2 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 9, "maxHearts": 2, "maxSpades": 3, "semiForcing": true, "priority": 3 },
+          { "bid": "2C", "minHCP": 10, "minClubs": 4, "maxSpades": 3, "forcing": true, "priority": 2 },
+          { "bid": "2D", "minHCP": 10, "minDiamonds": 4, "maxSpades": 3, "forcing": true, "priority": 2 },    
           { "bid": "2H", "minHCP": 6, "maxHCP": 9, "maxSpades": 3, "minSupport": 3, "priority": 3 },
-          { "bid": "2NT", "convention": "Jacoby 2NT", "minHCP": 13, "minSupport": 4, "forcingToGame": true, "priority": 4 },
+          { "bid": "2S", "minHCP": 17, "minSpades": 5, "maxHearts": 3, "forcingToGame": true, "priority": 1 },                              
+          { "bid": "2NT", "convention": "Jacoby 2NT", "minHCP": 13, "minSupport": 4, "forcingToGame": true, "priority": 3 },
+          { "bid": "3C", "minHCP": 17, "minClubs": 5, "maxSpades": 3, "forcingToGame": true, "priority": 1 },
+          { "bid": "3D", "minHCP": 17, "minDiamonds": 5, "maxSpades": 3, "forcingToGame": true, "priority": 1 },      
           { "bid": "3H", "minHCP": 10, "maxHCP": 12, "minSupport": 4, "invitational": true, "priority": 5 },
           { "bid": "4H", "minHCP": 13, "minSupport": 4, "toGame": true, "priority": 6 }
         ]
       },
       "1S": {
         "firstResponse": [
-          { "bid": "1NT", "minHCP": 6, "maxHCP": 10, "semiForcing": true, "priority": 1 },
-          { "bid": "2S", "minHCP": 6, "maxHCP": 9, "minSupport": 3, "priority": 2 },
+          { "bid": "1NT", "minHCP": 6, "maxHCP": 9, "maxSpades": 2, "semiForcing": true, "priority": 4 },
+          { "bid": "2C", "minHCP": 10, "minClubs": 4, "forcing": true, "priority": 2 },
+          { "bid": "2D", "minHCP": 10, "minDiamonds": 4, "forcing": true, "priority": 2 },    
+          { "bid": "2H", "minHCP": 10, "minHearts": 4, "forcing": true, "priority": 2 },
+          { "bid": "2S", "minHCP": 6, "maxHCP": 9, "minSupport": 3, "priority": 3 },
           { "bid": "2NT", "convention": "Jacoby 2NT", "minHCP": 13, "minSupport": 4, "forcingToGame": true, "priority": 3 },
+          { "bid": "3C", "minHCP": 17, "minClubs": 5, "forcingToGame": true, "priority": 1 },
+          { "bid": "3D", "minHCP": 17, "minDiamonds": 5, "forcingToGame": true, "priority": 1 },      
+          { "bid": "3H", "minHCP": 17, "minHearts": 5, "forcingToGame": true, "priority": 1 },  
           { "bid": "3S", "minHCP": 10, "maxHCP": 12, "minSupport": 4, "invitational": true, "priority": 4 },
           { "bid": "4S", "minHCP": 13, "minSupport": 4, "toGame": true, "priority": 5 }
         ]
@@ -83,10 +105,14 @@
           { "bid": "2D", "convention": "Jacoby Transfers", "transfersTo": "hearts", "minHCP": 0, "priority": 2 },
           { "bid": "2H", "convention": "Jacoby Transfers", "transfersTo": "spades", "minHCP": 0, "priority": 3 },
           { "bid": "2NT", "minHCP": 8, "maxHCP": 9, "invitational": true, "priority": 4 },
-          { "bid": "3NT", "minHCP": 10, "toGame": true, "priority": 5 },
-          { "bid": "4C", "convention": "Gerber", "minHCP": 14, "slamInterest": true, "priority": 6 },
-          { "bid": "4D", "convention": "Texas Transfers", "transfersTo": "hearts", "minHearts": 6, "toGame": true, "priority": 7 },
-          { "bid": "4H", "convention": "Texas Transfers", "transfersTo": "spades", "minSpades": 6, "toGame": true, "priority": 8 }
+          { "bid": "3C", "minHCP": 7, "maxHCP": 8, "minClubs": 6, "invitational": true, "priority": 5 },
+          { "bid": "3D", "minHCP": 7, "maxHCP": 8, "minDiamonds": 6, "invitational": true, "priority": 6 },
+          { "bid": "3H", "minHCP": 7, "minHearts": 6, "invitational": true, "priority": 7 },
+          { "bid": "3S", "minHCP": 7, "minSpades": 6, "invitational": true, "priority": 8 },
+          { "bid": "3NT", "minHCP": 10, "toGame": true, "priority": 9 },
+          { "bid": "4C", "convention": "Gerber", "minHCP": 14, "slamInterest": true, "priority": 10 },
+          { "bid": "4D", "convention": "Texas Transfers", "transfersTo": "hearts", "minHearts": 6, "toGame": true, "priority": 11 },
+          { "bid": "4H", "convention": "Texas Transfers", "transfersTo": "spades", "minSpades": 6, "toGame": true, "priority": 12 }
         ]
       },
       "2C": {
@@ -144,12 +170,121 @@
 
   "rebids": {
     "openerRebids": {
-      "1D-1H": {
+      "1C-1D": {
+        "1H": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minClubs": 3,
+          "minHearts": 4,
+          "description": "Natural, 4+ hearts"
+        },
         "1S": {
-          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minClubs": 3,
+          "maxHearts": 3,
+          "minSpades": 4,
+          "description": "Natural, 4+ spades"
+        },
+        "1NT": {
           "minHCP": 12,
           "maxHCP": 14,
           "maxSupport": 3,
+          "maxHearts": 3,
+          "maxSpades": 3,
+          "balanced": true,
+          "description": "Balanced hand"
+        },
+        "2D": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxHearts": 3,
+          "maxSpades": 3,
+          "minSupport": 4,
+          "description": "Raise diamonds with fit, minimum values"
+        },
+        "2C": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxHearts": 3,
+          "maxSpades": 3,
+          "minLength": 5,
+          "description": "5+ clubs, no 4-card major support"
+        },
+        "2H": {
+          "minClubs": 5,
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with clubs and hearts"
+        },
+        "2S": {
+          "minClubs": 5,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with clubs and spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with long clubs"
+        },
+        "3D": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Strong diamond raise"
+        },
+        "3H": {
+          "minHearts": 3,
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Strong heart raise"
+        },
+        "3S": {
+          "minSpades": 3,
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Strong spade raise"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "invitational": true,
+          "description": "Extra values with long clubs"
+        },
+        "4D": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Strong diamond raise"
+        }
+      },
+
+      "1C-1H": {
+        "1S": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "minLength": 4,
           "description": "Natural, 4+ spades"
         },
         "1NT": {
@@ -160,29 +295,576 @@
           "balanced": true,
           "description": "Balanced hand"
         },
-        "2D": {
-          "minLength": 5,
+        "2C": {
           "minHCP": 12,
           "maxHCP": 15,
-          "description": "Extra diamond length"
+          "minLength": 5,
+          "maxSupport": 3,
+          "maxSpades": 3,
+          "description": "No 4 hearts fit, 5+ clubs"
+        },
+        "2D": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minClubs": 5,
+          "minDiamonds": 4,
+          "maxSupport": 3,
+          "maxSpades": 3,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Diamonds"
         },
         "2H": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minSupport": 4,
+          "priorityOver1NT": true,
+          "description": "4 hearts fit, minimum values"
+        },
+        "2S": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minClubs": 5,
+          "minSpades": 4,
+          "forcingToGame": true,
+          "description": "Reverse: Strong hand 5 Clubs, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with 6 clubs"
+        },
+        "3D": {
+          "minClubs": 5,
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with 4 diamonds"
+        },
+        "3H": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "4 hearts fit. Strong hand"
+        },
+        "3S": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "minSpades": 3,
+          "minClubs": 5,
+          "forcingToGame": true,
+          "description": "Very strong hand 5 Clubs, 4 Spades"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "invitational": true,
+          "description": "Extra values with long clubs"
+        },
+        "4D": {
+          "minDiamonds": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Strong diamond raise"
+        },
+        "4H": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "4 hearts fit. Strong hand"
+        }
+      },
+
+      "1C-1S": {
+        "2S": {
           "minSupport": 4,
           "minHCP": 12,
           "maxHCP": 15,
-          "description": "4 hearts fit"
+          "priorityOver1NT": true,
+          "description": "Minimum with 4-card support"
         },
-        "2S": {
-          "minSpades": 4,
+        "1NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "Balanced hand"
+        },
+        "2C": {
+          "minLength": 5,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "maxSupport": 3,
+          "description": "Natural clubs, no 4-card spade support"
+        },
+        "2D": {
           "minHCP": 16,
           "maxHCP": 21,
-          "description": "Reverce. Strong hand 5 Hearts, 4 Spades"
+          "minClubs": 5,
+          "minDiamonds": 4,
+          "maxSupport": 3,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "2H": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minClubs": 5,
+          "minHearts": 4,
+          "maxSupport": 3,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Hearts"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "18-19 balanced, no 4-card support"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra clubs, strong"
+        },
+        "3D": {
+          "minClubs": 5,
+          "minDiamonds": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Very strong hand 5 Clubs, 3+ Diamonds"
+        },
+        "3H": {
+          "minClubs": 5,
+          "minHearts": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Very strong hand 5 Clubs, 3+ Hearts"
+        },
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "HCP 16-18, 4-card support"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Very strong hand 6 Clubs"
+        }
+      },
+
+      "1C-1NT": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxLength": 5,
+          "balanced": true,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "2C": {
+          "minLength": 5,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Natural club rebid"
+        },
+        "2D": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minClubs": 5,
+          "minDiamonds": 4,
+          "maxSupport": 3,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "2H": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minClubs": 5,
+          "minHearts": 4,
+          "maxSupport": 3,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Hearts"
+        },
+        "2S": {
+          "minHCP": 16,
+          "maxHCP": 21,
+          "minSpades": 4,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Hearts, 4 Spades"
         },
         "2NT": {
           "minHCP": 18,
           "maxHCP": 19,
           "balanced": true,
           "description": "18-19 balanced"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long clubs"
+        },
+        "3NT": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "balanced": true,
+          "description": "To game with strong balanced hand"
+        }
+      },
+
+      "1C-2C": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxLength": 4,
+          "balanced": true,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "2D": {
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "2H": {
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Strong hand 5 Clubs, 4 Hearts"
+        },
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Strong hand 5 Clubs, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxClubs": 3,
+          "description": "Balanced. Weak minimum, no club fit"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum with club fit"
+        },
+        "3D": {
+          "minDiamonds": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong hand 5 Clubs, 4 Hearts"
+        },
+        "3S": {
+          "minSpades": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong hand 5 Clubs, 4 Spades"
+        },
+        "3NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "Balanced game try"
+        }
+      },
+
+      "1C-2D": {
+        "3D": {
+          "minSupport": 3,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's diamonds with fit"
+        },
+        "4D": {
+          "minSupport": 3,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "Good values: jump-raise responder's diamonds with fit"
+        },
+        "2H": {
+          "maxSupport": 2,
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Hearts"
+        },
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Minimum values without diamond fit: closest notrump"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "maxSupport": 2,
+          "description": "Extra values with long clubs"
+        },
+        "3NT": {
+          "minHCP": 18,
+          "maxHCP": 21,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "maxSupport": 2,
+          "description": "Extra values with long clubs"
+        }
+      },
+
+      "1C-2H": {
+        "3H": {
+          "minSupport": 3,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's hearts with fit"
+        },
+        "4H": {
+          "minSupport": 3,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "To game with strong heart fit"
+        },
+        "2S": {
+          "maxSupport": 2,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Minimum values without heart fit: closest notrump"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long clubs"
+        },
+        "3D": {
+          "maxSupport": 2,
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "3NT": {
+          "minHCP": 18,
+          "maxHCP": 21,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "maxSupport": 2,
+          "description": "Extra values with long clubs"
+        }
+      },
+
+      "1C-2S": {
+        "3S": {
+          "minSupport": 3,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's spades with fit"
+        },
+        "4S": {
+          "minSupport": 3,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "To game with strong spade fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Minimum values without spade fit: closest notrump"
+        },
+        "3C": {
+          "maxSupport": 2,
+          "minLength": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long clubs"
+        },
+        "3D": {
+          "maxSupport": 2,
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Diamonds"
+        },
+        "3H": {
+          "maxSupport": 2,
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. Strong hand 5 Clubs, 4 Hearts"
+        },
+        "3NT": {
+          "minHCP": 18,
+          "maxHCP": 21,
+          "maxSupport": 2,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4C": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "maxSupport": 2,  
+          "description": "Extra values with long clubs"
+        }
+      },
+      
+      "1C-3C": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 13,
+          "maxLength": 4,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "3NT": {
+          "minHCP": 15,
+          "maxHCP": 17,
+          "balanced": true,
+          "description": "Try 3NT with stoppers and game values"
+        },
+        "5C": {
+          "minLength": 6,
+          "minHCP": 12,
+          "description": "To game in clubs"
+        }
+      },
+
+      "1C-2NT": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 13,
+          "maxLength": 4,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 14,
+          "description": "Sign off in clubs with long suit and minimum values"
+        },
+        "3NT": {
+          "minHCP": 15,
+          "maxHCP": 17,
+          "balanced": true,
+          "description": "Accept invitation with suitable notrump values"
+        },
+        "5C": {
+          "minLength": 6,
+          "minHCP": 15,
+          "description": "Choose minor-suit game with long clubs"
+        }
+      },
+      
+      "1D-1H": {
+        "1S": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minLength": 4,
+          "maxSupport": 3,
+          "description": "Natural, 4+ spades"
+        },
+        "2H": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minSupport": 4,
+          "description": "4 hearts fit, minimum values"
+        },
+        "1NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 3,
+          "maxSpades": 3,
+          "balanced": true,
+          "description": "Balanced hand"
+        },
+        "2C": {
+          "minHCP": 12,
+          "maxHCP": 18,
+          "maxSupport": 3,
+          "minLength": 4,
+          "maxSpades": 3,
+          "description": "No 4 hearts fit, 5 diamonds, 4+ clubs, 12-18 HCP"
+        },
+        "2D": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "minLength": 5,
+          "maxSupport": 3,
+          "maxSpades": 3,
+          "description": "5 diamonds, no 4 card major support"
+        },
+        
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse. Strong hand 5 Hearts, 4 Spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minClubs": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21 with 5 diamonds, 3+ clubs, to game"
         },
         "3D": {
           "minLength": 6,
@@ -198,12 +880,408 @@
           "description": "4 hearts fit"
         },
         "3S": {
+          "minSpades": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21 with 5 diamonds, 3+ spades, to game"
+        },
+        "4D": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "invitational": true,
+          "description": "Extra values with long diamonds"
+        },
+        "4H": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "4 hearts fit"
+        }
+      },
+
+      "1D-1S": {
+        "2S": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum raise with 4-card spade support"
+        },
+        "1NT": {
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "Balanced hand without spade fit"
+        },
+        "2C": {
+          "minHCP": 12,
+          "maxHCP": 18,
+          "minClubs": 4,
+          "maxSupport": 3,
+          "description": "Natural clubs, no 4-card spade support"
+        },
+        "2D": {
+          "minDiamonds": 5,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum rebid with 5+ diamonds"
+        },
+        "2H": {
+          "minDiamonds": 5,
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with diamonds and hearts"
+        },
+        
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "maxSupport": 3,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minClubs": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21 with 5 diamonds, 3+ clubs, to game"
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational rebid with long diamonds"
+        },
+        "3H": {
+          "minHearts": 3,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "HCP 19-21 with 5 diamonds, 3+ hearts, to game"
+        },
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational raise with spade fit"
+        },
+        "4D": {
+          "minLength": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "invitational": true,
+          "description": "Extra values with long diamonds"
+        },
+        "3NT": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "balanced": true,
+          "maxSupport": 3,
+          "description": "Strong balanced hand, to game"
+        },
+        "4S": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong spade fit"
+        }
+      },
+
+      "1D-1NT": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxLength": 4,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "2C": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural club rebid with diamonds"
+        },
+        "2D": {
+          "minDiamonds": 5,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum rebid with 5+ diamonds"
+        },
+        "2H": {
+          "minDiamonds": 5,
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with diamonds and hearts"
+        },
+        "2S": {
+          "minDiamonds": 5,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with diamonds and spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong jump in clubs with diamond opening"
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational rebid with long diamonds"
+        },
+        "3H": {
+          "minDiamonds": 5,
+          "minHearts": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Jump rebid hearts with strong two-suiter"
+        },
+        "3S": {
+          "minDiamonds": 5,
           "minSpades": 4,
           "minHCP": 19,
           "maxHCP": 21,
-          "description": "HCP 19-21 with 5 diamonds, 4 spades, to game"
+          "description": "Jump rebid spades with strong two-suiter"
+        },
+        "3NT": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "5D": {
+          "minDiamonds": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long diamonds"
         }
       },
+
+      "1D-2C": {
+        "2D": {
+          "minDiamonds": 5,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values without club fit: rebid diamonds"
+        },
+        "3C": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's clubs with fit"
+        },
+        "2H": {
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational rebid with long diamonds"
+        }
+      },
+
+      "1D-2D": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 14,
+          "maxLength": 4,
+          "balanced": true,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "2H": {
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxDiamonds": 3,
+          "description": "Balanced. Weak minimum, no diamond fit"
+        },
+        "3C": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum with club fit"
+        },
+        "3D": {
+          "minDiamonds": 5,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Natural side suit with extra values"
+        },
+        "3S": {
+          "minSpades": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Natural side suit with extra values"
+        },
+        "3NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4D": {
+          "minDiamonds": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long diamonds"
+        }
+      },
+
+      "1D-2H": {
+        "2S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Reverse. 5+ hearts and 4+ spades with 16-21 HCP"
+        },
+        "3H": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's hearts with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without heart fit: closest notrump"
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long diamonds"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4H": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong heart fit"
+        }
+      },
+
+      "1D-2S": {
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's spades with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without spade fit: closest notrump"
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long diamonds"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4S": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong spade fit"
+        }
+      },
+
+      "1D-2NT": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 13,
+          "maxLength": 4,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "3D": {
+          "minDiamonds": 6,
+          "minHCP": 12,
+          "maxHCP": 14,
+          "description": "Sign off in diamonds with long suit and minimum values"
+        },
+        "3NT": {
+          "minHCP": 15,
+          "maxHCP": 17,
+          "balanced": true,
+          "description": "Accept invitation with suitable notrump values"
+        },
+        "5D": {
+          "minDiamonds": 6,
+          "minHCP": 15,
+          "description": "Choose minor-suit game with long diamonds"
+        }
+      },
+
       "1H-1S": {
         "1NT": {
           "minHCP": 12,
@@ -259,11 +1337,99 @@
           "description": "Extra hearts, strong"
         }
       },
-      "1H-2C": {
+      
+      "1H-1NT": {
+        "2C": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural club rebid with hearts"
+        },
         "2D": {
           "minLength": 4,
           "minHCP": 12,
           "maxHCP": 18,
+          "description": "Natural diamond rebid with hearts"
+        },
+        "2H": {
+          "minHearts": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum rebid with 6+ hearts"
+        },
+        "2S": {
+          "minHearts": 5,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse: extra values with hearts and spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minLength": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong jump in clubs with heart opening"
+        },
+        "3D": {
+          "minLength": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong jump in diamonds with heart opening"
+        },
+        "3H": {
+          "minHearts": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational rebid with long hearts"
+        },
+        "3NT": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4H": {
+          "minHearts": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long hearts"
+        }
+      },
+
+      "1H-2C": {
+        "2S": {
+          "minHearts": 5,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse pattern: 5+ hearts and 4+ spades with 16-21 HCP"
+        },
+        "3C": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's clubs with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without club fit: closest notrump"
+        },
+        "2D": {
+          "minLength": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "maxSpades": 3,
           "maxSupport": 3,
           "description": "Natural, HCP12-18, no 4-card spade support"
         },
@@ -273,23 +1439,11 @@
           "maxHCP": 18,
           "description": "Natural, HCP12-18, 6+ hearts, no 4-card spade support"
         },
-        "2S": {
-          "minSupport": 4,
-          "minHCP": 16,
-          "maxHCP": 21,
-          "description": "Reverse, strong hand 5 Hearts, 4 Spades"
-        },
         "3S": {
           "minSupport": 4,
           "minHCP": 19,
           "maxHCP": 21,
           "description": "HCP 19-21, 4-card support"
-        },
-        "2NT": {
-          "minHCP": 18,
-          "maxHCP": 19,
-          "balanced": true,
-          "description": "18-19 balanced, no 4-card support"
         },
         "3H": {
           "minHearts": 6,
@@ -299,39 +1453,269 @@
           "description": "Extra hearts, strong"
         }
       },
+
+      "1H-2D": {
+        "2S": {
+          "minHearts": 5,
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "forcingToGame": true,
+          "description": "Reverse pattern: 5+ hearts and 4+ spades with 16-21 HCP"
+        },
+        "3D": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's diamonds with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without diamond fit: closest notrump"
+        },
+        "2H": {
+          "minLength": 6,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural rebid with extra heart length"
+        },
+        "3H": {
+          "minHearts": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "extraLength": true,
+          "description": "Extra hearts, strong"
+        }
+      },
+
+      "1H-2H": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 13,
+          "maxLength": 5,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "3H": {
+          "minHearts": 5,
+          "minHCP": 14,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's hearts with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without extra shape: closest notrump"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3D": {
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3S": {
+          "minSpades": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4H": {
+          "minHearts": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long hearts"
+        }
+      },
+
+      "1H-2S": {
+        "3S": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's spades with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxSupport": 3,
+          "description": "Minimum values without spade fit: closest notrump"
+        },
+        "3H": {
+          "minHearts": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long hearts"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3D": {
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4S": {
+          "minSupport": 4,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong spade fit"
+        }
+      },
+
       "1H-2NT": {
         "3C": {
           "convention": "Jacoby 2NT",
           "singletonOrVoid": "clubs",
-          "description": "Shortness-showing rebid after Jacoby 2NT"
+          "description": "Singleton or void in clubs; next-step raise indicates void"
         },
         "3D": {
           "convention": "Jacoby 2NT",
           "singletonOrVoid": "diamonds",
-          "description": "Shortness-showing rebid after Jacoby 2NT"
+          "description": "Singleton or void in diamonds; next-step raise indicates void"
         },
         "3H": {
           "convention": "Jacoby 2NT",
-          "minimum": true,
-          "description": "Minimum opening with no shortness"
+          "minHCP": 16,
+          "slamInterest": true,
+          "description": "16+ with heart fit and slam interest; asks responder for further description"
+        },
+        "3S": {
+          "convention": "Jacoby 2NT",
+          "minHCP": 16,
+          "singletonOrVoid": "spades",
+          "description": "Shortness-showing spade control with heart fit"
         },
         "3NT": {
           "convention": "Jacoby 2NT",
-          "balancedMaximum": true,
-          "description": "Balanced maximum opener hand"
+          "minHCP": 14,
+          "maxHCP": 15,
+          "balanced": true,
+          "description": "14-15 balanced hand"
+        },
+        "4C": {
+          "convention": "Jacoby 2NT",
+          "minClubs": 5,
+          "description": "5+ clubs side suit"
+        },
+        "4D": {
+          "convention": "Jacoby 2NT",
+          "minDiamonds": 5,
+          "description": "5+ diamonds side suit"
         },
         "4H": {
           "convention": "Jacoby 2NT",
-          "strongNoShortness": true,
-          "description": "Strong hand without shortness"
+          "minimum": true,
+          "minHCP": 12,
+          "maxHCP": 14,
+          "balanced": true,
+          "description": "Minimum balanced signoff with heart fit"
         }
       },
-      "1S-2D": {
-        "2H": {
+
+      "1S-1NT": {
+        "2C": {
           "minLength": 4,
           "minHCP": 12,
           "maxHCP": 18,
-          "description": "Natural second suit, non-forcing style rebid"
+          "description": "Natural club rebid with spades"
+        },
+        "2D": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural diamond rebid with spades"
+        },
+        "2H": {
+          "minHearts": 4,
+          "minSpades": 5,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural second suit with 5+ spades and 4+ hearts"
+        },
+        "2S": {
+          "minSpades": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum rebid with 6+ spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced"
+        },
+        "3C": {
+          "minLength": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong jump in clubs with spade opening"
+        },
+        "3D": {
+          "minLength": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Strong jump in diamonds with spade opening"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minSpades": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Jump rebid hearts with strong two-suiter"
+        },
+        "3S": {
+          "minSpades": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Invitational rebid with long spades"
+        },
+        "3NT": {
+          "minHCP": 19,
+          "maxHCP": 21,
+          "balanced": true,
+          "description": "Strong balanced hand, to game"
+        },
+        "4S": {
+          "minSpades": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long spades"
+        }
+      },
+
+      "1S-2C": {
+        "2H": {
+          "minHearts": 4,
+          "minSpades": 5,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural second suit with 5+ spades and 4+ hearts"
+        },
+        "2D": {
+          "minDiamonds": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Support responder diamonds with 4-card fit"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minSpades": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Jump rebid hearts with strong 5+ spades and 4+ hearts"
         },
         "2S": {
           "minSpades": 6,
@@ -352,44 +1736,315 @@
           "invitational": true,
           "description": "Extra values with long spades"
         },
-        "3D": {
+        "3C": {
           "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Support responder clubs with 4-card fit"
+        }
+      },
+
+      "1S-2D": {
+        "2H": {
+          "minLength": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "forcing": true,
+          "description": "Natural second suit, one-round forcing"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minSpades": 5,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "Jump rebid hearts with strong 5+ spades and 4+ hearts"
+        },
+        "2S": {
+          "minSpades": 6,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum with long spades"
+        },
+        "2NT": {
+          "minHCP": 18,
+          "maxHCP": 19,
+          "balanced": true,
+          "description": "18-19 balanced rebid over 2-over-1 response"
+        },
+        "3S": {
+          "minSpades": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "invitational": true,
+          "description": "Extra values with long spades"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Support responder clubs with 4-card fit"
+        },
+        "3D": {
+          "minDiamonds": 4,
           "minHCP": 12,
           "maxHCP": 18,
           "description": "Support responder diamonds with 4-card fit"
         }
       },
+
+      "1S-2H": {
+        "3H": {
+          "minSupport": 4,
+          "minHCP": 12,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's hearts with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxLength": 5,
+          "balanced": true,
+          "description": "Minimum values without heart fit: closest notrump"
+        },
+        "3S": {
+          "minSpades": 6,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Extra values with long spades"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3D": {
+          "minDiamonds": 4,
+          "minHCP": 12,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4H": {
+          "minSupport": 4,
+          "minHCP": 16,
+          "maxHCP": 21,
+          "description": "To game with strong heart fit"
+        }
+      },
+
+      "1S-2S": {
+        "P": { 
+          "minHCP": 12,
+          "maxHCP": 13,
+          "maxLength": 5,
+          "description": "Pass with no suitable rebid under system constraints." 
+        },
+        "3S": {
+          "minSpades": 5,
+          "minHCP": 14,
+          "maxHCP": 15,
+          "description": "Minimum values: raise responder's spades with fit"
+        },
+        "2NT": {
+          "minHCP": 12,
+          "maxHCP": 15,
+          "maxLength": 5,
+          "balanced": true,
+          "description": "Minimum values without extra shape: closest notrump"
+        },
+        "3C": {
+          "minClubs": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3D": {
+          "minDiamonds": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "3H": {
+          "minHearts": 4,
+          "minHCP": 16,
+          "maxHCP": 18,
+          "description": "Natural side suit with extra values"
+        },
+        "4S": {
+          "minSpades": 6,
+          "minHCP": 19,
+          "maxHCP": 21,
+          "description": "To game with strong long spades"
+        }
+      },
+      
       "1S-2NT": {
         "3C": {
           "convention": "Jacoby 2NT",
           "singletonOrVoid": "clubs",
-          "description": "Shortness-showing rebid after Jacoby 2NT"
+          "description": "Singleton or void in clubs; next-step raise indicates void"
         },
         "3D": {
           "convention": "Jacoby 2NT",
           "singletonOrVoid": "diamonds",
-          "description": "Shortness-showing rebid after Jacoby 2NT"
+          "description": "Singleton or void in diamonds; next-step raise indicates void"
         },
         "3H": {
           "convention": "Jacoby 2NT",
           "singletonOrVoid": "hearts",
-          "description": "Shortness-showing rebid after Jacoby 2NT"
+          "description": "Singleton or void in hearts; next-step raise indicates void"
         },
         "3S": {
           "convention": "Jacoby 2NT",
-          "minimum": true,
-          "description": "Minimum opening with no shortness"
+          "minHCP": 16,
+          "slamInterest": true,
+          "description": "16+ with spade fit and slam interest; asks responder for further description"
         },
         "3NT": {
           "convention": "Jacoby 2NT",
-          "balancedMaximum": true,
-          "description": "Balanced maximum opener hand"
+          "minHCP": 14,
+          "maxHCP": 15,
+          "balanced": true,
+          "description": "14-15 balanced hand"
+        },
+        "4C": {
+          "convention": "Jacoby 2NT",
+          "minClubs": 5,
+          "description": "5+ clubs side suit"
+        },
+        "4D": {
+          "convention": "Jacoby 2NT",
+          "minDiamonds": 5,
+          "description": "5+ diamonds side suit"
+        },
+        "4H": {
+          "convention": "Jacoby 2NT",
+          "minHearts": 5,
+          "description": "5+ hearts side suit with spade fit"
         },
         "4S": {
           "convention": "Jacoby 2NT",
-          "strongNoShortness": true,
-          "description": "Strong hand without shortness"
+          "minimum": true,
+          "minHCP": 12,
+          "maxHCP": 14,
+          "balanced": true,
+          "description": "Minimum balanced signoff with spade fit"
         }
+      }
+    },
+    "responderThirdRound": {
+      "profiles": {
+        "oneOverOneStandard": {
+          "afterSupport": {
+            "pass": { "maxHCP": 9, "description": "Minimum values: no further game interest" },
+            "invite": { "bid": "nextAvailableNT", "minHCP": 10, "maxHCP": 11, "description": "Invite game" },
+            "toGame": { "bid": "gameInFit", "minHCP": 12, "description": "Bid game with fit and values" }
+          },
+          "afterNotrump": {
+            "pass": { "maxHCP": 10, "description": "No game interest opposite minimum" },
+            "invite": { "bid": "2NT", "minHCP": 11, "maxHCP": 12, "description": "Invite 3NT" },
+            "toGame": { "bid": "3NT", "minHCP": 13, "description": "Place contract in game" }
+          },
+          "afterNewSuit": {
+            "preference": { "bid": "returnToOriginalSuit", "description": "Show preference with fit" },
+            "fourthSuitForcing": { "bid": "lowestUnbidSuit", "convention": "Fourth Suit Forcing", "minHCP": 10, "description": "Game-force inquiry" },
+            "toGame": { "bid": "bestGame", "minHCP": 12, "description": "Drive to game with sufficient values" }
+          }
+        },
+        "oneNotrumpResponse": {
+          "afterSupport": {
+            "pass": { "maxHCP": 9, "description": "Sign off with minimum values" },
+            "invite": { "bid": "3InSuit", "minHCP": 10, "maxHCP": 11, "description": "Invite game in suit" },
+            "toGame": { "bid": "gameInSuit", "minHCP": 12, "description": "Bid game in agreed suit" }
+          },
+          "afterNotrump": {
+            "pass": { "maxHCP": 9, "description": "No game interest" },
+            "invite": { "bid": "2NT", "minHCP": 10, "maxHCP": 11, "description": "Invite 3NT" },
+            "toGame": { "bid": "3NT", "minHCP": 12, "description": "Place contract in game" }
+          },
+          "afterNewSuit": {
+            "preference": { "bid": "bestFitOrNT", "description": "Prefer known fit or notrump" },
+            "invite": { "bid": "jumpPreference", "minHCP": 10, "maxHCP": 11, "description": "Invite game" },
+            "toGame": { "bid": "bestGame", "minHCP": 12, "description": "Bid game with values" }
+          }
+        },
+        "twoOverOneGameForce": {
+          "afterSupport": {
+            "controlBid": { "bid": "cueBid", "convention": "Control Bids", "description": "Show control with slam interest" },
+            "bidGame": { "bid": "gameInFit", "description": "Place contract in game" },
+            "blackwood": { "bid": "4NT", "convention": "Blackwood", "description": "Ace-ask with slam interest" }
+          },
+          "afterNotrump": {
+            "natural": { "bid": "3NT", "description": "Natural game choice in notrump" },
+            "minorGame": { "bid": "5m", "description": "Play game in minor when suitable" },
+            "slamTry": { "bid": "controlBidThen4NT", "description": "Slam exploration" }
+          },
+          "afterNewSuit": {
+            "fourthSuitForcing": { "bid": "lowestUnbidSuit", "convention": "Fourth Suit Forcing", "forcing": true, "description": "Keeps auction forcing" },
+            "supportOpenerSuit": { "bid": "raiseOpenerSuit", "description": "Set trump and continue forcing auction" },
+            "supportResponderSuit": { "bid": "raiseResponderSuit", "description": "Confirm fit and continue toward game/slam" }
+          }
+        },
+        "simpleRaiseInMajor": {
+          "afterSupport": {
+            "pass": { "maxHCP": 9, "description": "Compete only, no game try" },
+            "invite": { "bid": "3M", "minHCP": 10, "maxHCP": 11, "description": "Invitational raise" },
+            "toGame": { "bid": "4M", "minHCP": 12, "description": "Bid game with adequate values" }
+          }
+        },
+        "simpleRaiseInMinor": {
+          "afterSupport": {
+            "pass": { "maxHCP": 9, "description": "Sign off in partscore" },
+            "invite": { "bid": "3NT_or_5m", "minHCP": 10, "maxHCP": 11, "description": "Invite game in best strain" },
+            "toGame": { "bid": "5m_or_3NT", "minHCP": 12, "description": "Choose best game" }
+          }
+        },
+        "jacoby2NT": {
+          "afterOpenerDescription": {
+            "signoff": { "bid": "gameInMajor", "description": "Accept game if no slam interest" },
+            "cueBid": { "bid": "nextControl", "convention": "Control Bids", "description": "Show controls toward slam" },
+            "blackwood": { "bid": "4NT", "convention": "Blackwood", "description": "Ace-ask with slam interest" }
+          }
+        },
+        "preemptiveMinorRaise": {
+          "afterAny": {
+            "signoff": { "bid": "5m", "description": "Play in minor game" },
+            "toNotrump": { "bid": "3NT", "description": "Place contract in 3NT with stoppers" }
+          }
+        }
+      },
+      "bySequence": {
+        "1C-1D": { "profile": "oneOverOneStandard" },
+        "1C-1H": { "profile": "oneOverOneStandard" },
+        "1C-1S": { "profile": "oneOverOneStandard" },
+        "1C-1NT": { "profile": "oneNotrumpResponse" },
+        "1C-2C": { "profile": "twoOverOneGameForce" },
+        "1C-2D": { "profile": "twoOverOneGameForce" },
+        "1C-2H": { "profile": "twoOverOneGameForce" },
+        "1C-2S": { "profile": "twoOverOneGameForce" },
+        "1C-3C": { "profile": "preemptiveMinorRaise" },
+        "1C-2NT": { "profile": "oneNotrumpResponse" },
+        "1D-1H": { "profile": "oneOverOneStandard" },
+        "1D-1NT": { "profile": "oneNotrumpResponse" },
+        "1D-1S": { "profile": "oneOverOneStandard" },
+        "1D-2C": { "profile": "twoOverOneGameForce" },
+        "1D-2D": { "profile": "simpleRaiseInMinor" },
+        "1D-2H": { "profile": "twoOverOneGameForce" },
+        "1D-2S": { "profile": "twoOverOneGameForce" },
+        "1D-2NT": { "profile": "oneNotrumpResponse" },
+        "1H-1S": { "profile": "oneOverOneStandard" },
+        "1H-1NT": { "profile": "oneNotrumpResponse" },
+        "1H-2C": { "profile": "twoOverOneGameForce" },
+        "1H-2D": { "profile": "twoOverOneGameForce" },
+        "1H-2H": { "profile": "simpleRaiseInMajor" },
+        "1H-2S": { "profile": "twoOverOneGameForce" },
+        "1H-2NT": { "profile": "jacoby2NT" },
+        "1S-1NT": { "profile": "oneNotrumpResponse" },
+        "1S-2C": { "profile": "twoOverOneGameForce" },
+        "1S-2D": { "profile": "twoOverOneGameForce" },
+        "1S-2H": { "profile": "twoOverOneGameForce" },
+        "1S-2S": { "profile": "simpleRaiseInMajor" },
+        "1S-2NT": { "profile": "jacoby2NT" }
       }
     },
     "responderSecondBid": {

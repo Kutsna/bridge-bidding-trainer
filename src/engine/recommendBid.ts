@@ -31,6 +31,54 @@ function hasDiamondSpadeReverseValues(
   return opening === "1D" && facts.suitLengths.S >= 4 && facts.hcp >= 16 && facts.hcp <= 21;
 }
 
+function getSpadeHeartRebid(
+  opening: string,
+  facts: ReturnType<typeof computeHandFacts>,
+): string | null {
+  if (opening !== "1S") return null;
+  if (facts.suitLengths.S < 5 || facts.suitLengths.H < 4) return null;
+  if (facts.hcp >= 12 && facts.hcp <= 18) return "2H";
+  if (facts.hcp >= 19 && facts.hcp <= 21) return "3H";
+  return null;
+}
+
+function getHeartSpadeReverseRebid(
+  opening: string,
+  responderBid: string,
+  facts: ReturnType<typeof computeHandFacts>,
+): string | null {
+  if (opening !== "1H") return null;
+  if (responderBid !== "2C" && responderBid !== "2D") return null;
+
+  const hasReverseShape = facts.suitLengths.H >= 5 && facts.suitLengths.S >= 4;
+  if (hasReverseShape && facts.hcp >= 16 && facts.hcp <= 21) {
+    return "2S";
+  }
+
+  if (facts.hcp < 12 || facts.hcp > 15) return null;
+
+  if (responderBid === "2C" && facts.suitLengths.C >= 4) return "3C";
+  if (responderBid === "2D" && facts.suitLengths.D >= 4) return "3D";
+
+  return "2NT";
+}
+
+function isNaturalBid(bid: string): boolean {
+  return /^[1-7](C|D|H|S|NT)$/.test(bid);
+}
+
+function canBidSuitAtOneLevelAfterResponse(
+  opening: string,
+  responderBid: string,
+  rebidSuit: "H" | "S",
+): boolean {
+  if (!/^1[CDHS]$/.test(opening) || !/^1[CDHS]$/.test(responderBid)) return false;
+
+  const responderSuit = responderBid.slice(-1) as "C" | "D" | "H" | "S";
+  const suitRank = { C: 1, D: 2, H: 3, S: 4 } as const;
+  return suitRank[rebidSuit] > suitRank[responderSuit];
+}
+
 function mapResponderFirstAnswerToRebid(
   responderBid: string,
   opening: string,
@@ -38,6 +86,18 @@ function mapResponderFirstAnswerToRebid(
   matrix: ReturnType<typeof generateBidRebidMatrix>,
 ): string {
   if (responderBid === "1H" || responderBid === "1S") {
+    if (opening === "1C" || opening === "1D") {
+      const otherMajor = responderBid === "1H" ? "S" : "H";
+      const hasOtherMajorLength = facts.suitLengths[otherMajor] >= 4;
+
+      if (
+        hasOtherMajorLength &&
+        canBidSuitAtOneLevelAfterResponse(opening, responderBid, otherMajor)
+      ) {
+        return `1${otherMajor}`;
+      }
+    }
+
     const responderMajor = responderBid.slice(-1) as "H" | "S";
     const openingSuit = opening.endsWith("NT") ? "NT" : opening.slice(-1);
     const validNaturalOpeningSuit = ["C", "D", "H", "S"].includes(openingSuit);
@@ -76,12 +136,28 @@ function mapResponderFirstAnswerToRebid(
     return matrix.rebidAfter1NT;
   }
   if (responderBid === "2C") {
+    const heartSpadeReverse = getHeartSpadeReverseRebid(opening, responderBid, facts);
+    if (heartSpadeReverse) {
+      return heartSpadeReverse;
+    }
+    const spadeHeartRebid = getSpadeHeartRebid(opening, facts);
+    if (spadeHeartRebid) {
+      return spadeHeartRebid;
+    }
     if (hasDiamondSpadeReverseValues(opening, facts)) {
       return "2S";
     }
     return matrix.rebidAfter2C;
   }
   if (responderBid === "2D") {
+    const heartSpadeReverse = getHeartSpadeReverseRebid(opening, responderBid, facts);
+    if (heartSpadeReverse) {
+      return heartSpadeReverse;
+    }
+    const spadeHeartRebid = getSpadeHeartRebid(opening, facts);
+    if (spadeHeartRebid) {
+      return spadeHeartRebid;
+    }
     if (hasDiamondSpadeReverseValues(opening, facts)) {
       return "2S";
     }
@@ -159,12 +235,26 @@ export function recommendBidFromAuction(
 
   if (calls.length >= 2) {
     const responderFirstAnswer = calls[1];
-    const openerRebid = mapResponderFirstAnswerToRebid(
+    let openerRebid = mapResponderFirstAnswerToRebid(
       responderFirstAnswer,
       matrix.opening,
       facts,
       matrix,
     );
+
+    const hasInterferenceBeforeOurRebid =
+      calls.length >= 3 && isNaturalBid(calls[2]);
+
+    const isMinRangeHeartReverseNoFitNTPlan =
+      matrix.opening === "1H" &&
+      (responderFirstAnswer === "2C" || responderFirstAnswer === "2D") &&
+      facts.hcp >= 12 &&
+      facts.hcp <= 15 &&
+      openerRebid === "2NT";
+
+    if (isMinRangeHeartReverseNoFitNTPlan && hasInterferenceBeforeOurRebid) {
+      openerRebid = facts.hcp >= 14 ? "X" : "P";
+    }
 
     if (calls.length === 2) {
       return {

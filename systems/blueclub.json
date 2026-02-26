@@ -1,0 +1,18 @@
+{
+	"name": "Blue Club (Baseline)",
+	"openingStructure": {},
+	"responses": {
+		"globalRules": {},
+		"byOpening": {},
+		"competitive": {}
+	},
+	"rebids": {
+		"openerRebids": {},
+		"responderThirdRound": {
+			"profiles": {},
+			"bySequence": {}
+		},
+		"responderSecondBid": {}
+	},
+	"conventions": {}
+}

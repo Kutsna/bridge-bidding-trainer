@@ -179,6 +179,53 @@ let isSelectorOpen = false;
 let aiLoadingInterval: ReturnType<typeof setInterval> | null = null;
 let latestPartnerBidExplanation = "";
 
+function getHandHcp(hand: HandItem[]): number {
+  return hand.reduce((sum, card) => {
+    if (card.rank === "A") return sum + 4;
+    if (card.rank === "K") return sum + 3;
+    if (card.rank === "Q") return sum + 2;
+    if (card.rank === "J") return sum + 1;
+    return sum;
+  }, 0);
+}
+
+function withHcpPrefix(text: string): string {
+  const normalized = String(text ?? "").trim();
+  if (normalized.toLowerCase().startsWith("with hcp")) {
+    return normalized;
+  }
+
+  const hcp = getHandHcp(selectedHand);
+  if (!normalized) {
+    return `With HCP ${hcp}.`;
+  }
+
+  const startsWithTitleCaseWord = /^[A-Z][a-z]/.test(normalized);
+  const leading = startsWithTitleCaseWord
+    ? normalized[0].toLowerCase() + normalized.slice(1)
+    : normalized;
+
+  return `With HCP ${hcp}, ${leading}`;
+}
+
+function getBidRebidCoupleExplanation(): string {
+  try {
+    const firstContractEntry = auction.find((entry) => {
+      const bid = String(entry?.bid ?? "").trim().toUpperCase();
+      return bid && bid !== "P" && bid !== "X" && bid !== "XX";
+    });
+
+    if (firstContractEntry && isPartnerSeat(firstContractEntry.seat)) {
+      return `Responder context: partner opened ${String(firstContractEntry.bid).trim().toUpperCase()}.`;
+    }
+
+    const advice = recommendBidFromAuction(selectedHand, auction);
+    return advice?.explanation || "Bid-rebid couple explanation unavailable.";
+  } catch {
+    return "Bid-rebid couple explanation unavailable.";
+  }
+}
+
 function stopAiLoadingAnimation() {
   if (!aiLoadingInterval) return;
   clearInterval(aiLoadingInterval);
@@ -1452,6 +1499,7 @@ function addBid(bid: string) {
         auction: auctionSnapshotForPartnerExplanation,
         dealer,
         handSeat,
+        system: (document.getElementById("systemSelect") as HTMLSelectElement)?.value || "sayc",
       })
     })
       .then(res => res.json())
@@ -1460,6 +1508,16 @@ function addBid(bid: string) {
           ? data.explanation
           : "";
         refreshPartnerBidExplanationInOutput();
+
+        const outputEl = document.getElementById("output");
+        if (outputEl && !outputEl.innerHTML.trim() && latestPartnerBidExplanation) {
+          outputEl.innerHTML = `
+            <div style="margin-top: 10px; font-size: 30px; line-height: 1.35;">
+              <div style="font-size: 36px; font-weight: bold;">Partner Bid Definition</div>
+              ${renderPartnerBidExplanationLine()}
+            </div>
+          `;
+        }
       })
       .catch(err => {
         console.error("Explain error:", err);
@@ -1512,6 +1570,96 @@ function resetAuction() {
 }
 
 async function recommend() {
+  if (selectedHand.length !== 13) {
+    alert("Please select exactly 13 cards first.");
+    return;
+  }
+
+  try {
+    const selectedSystem =
+      (document.getElementById("systemSelect") as HTMLSelectElement).value;
+
+    const response = await fetch("/recommend-bid-ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        selectedHand,
+        auction,
+        dealer: (document.getElementById("dealer") as HTMLSelectElement).value,
+        handSeat: (document.getElementById("handSeat") as HTMLSelectElement).value,
+        vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value,
+        system: selectedSystem,
+        allowAI: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`BBT route failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data?.source === "none" || !data?.bid) {
+      const noMatchMessage = String(data?.explanation || "No bid-rebid couple matched in the selected system JSON.");
+      document.getElementById("output")!.innerHTML = `
+        <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+          ${renderPartnerBidExplanationLine()}
+          <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
+          <div style="margin-top: 10px; font-size: 28px;">${noMatchMessage}</div>
+          <div style="margin-top: 8px; font-size: 28px;"><b>Click Ask AI</b> to get AI advice.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const appliedConventions = Array.isArray(data.appliedConventions)
+      ? data.appliedConventions
+      : [];
+
+    const conventionGuidance = Array.isArray(data.conventionGuidance)
+      ? data.conventionGuidance
+      : [];
+
+    const conventionList = appliedConventions.length
+      ? appliedConventions.join(", ")
+      : "None";
+
+    const guidanceHtml = conventionGuidance.length
+      ? `<div style="margin-top:10px; font-size:26px; text-align:left; display:inline-block; max-width:1100px;">
+          ${conventionGuidance
+            .map((c: any) => `
+              <div style="margin-bottom:8px;">
+                <b>${c.name}:</b> when ${c.whenToUse}; why now: ${c.whyUsedNow}
+              </div>
+            `)
+            .join("")}
+        </div>`
+      : "";
+
+    document.getElementById("output")!.innerHTML = `
+      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${data.bid}</div>
+        ${renderPartnerBidExplanationLine()}
+        <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
+        <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
+        ${guidanceHtml}
+        <div style="margin-top: 10px; font-size: 28px;">Local SAYC rule engine result.</div>
+      </div>
+    `;
+  } catch (err) {
+    console.error("Recommend route error:", err);
+    document.getElementById("output")!.innerHTML = `
+      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+        ${renderPartnerBidExplanationLine()}
+        <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
+        <div style="margin-top: 10px; font-size: 28px;">Local advice request failed.</div>
+        <div style="margin-top: 8px; font-size: 28px;"><b>Click Ask AI</b> to request AI advice.</div>
+      </div>
+    `;
+  }
+}
+
+async function askAI() {
   try {
     if (selectedHand.length !== 13) {
       alert("Please select exactly 13 cards first.");
@@ -1544,11 +1692,19 @@ async function recommend() {
         handSeat: (document.getElementById("handSeat") as HTMLSelectElement).value,
         vulnerability: (document.getElementById("vuln") as HTMLSelectElement).value,
         system: selectedSystem,
+        forceAI: true,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`AI route failed: ${response.status}`);
+      let backendError = "";
+      try {
+        const errPayload = await response.json();
+        backendError = String(errPayload?.error || "").trim();
+      } catch {
+        backendError = "";
+      }
+      throw new Error(backendError || `AI route failed: ${response.status}`);
     }
 
     const data = await response.json();
@@ -1577,25 +1733,28 @@ async function recommend() {
         </div>`
       : "";
 
+    const title = data?.source === "ai" ? "AI Advised Bid" : "Advised bid";
+
     document.getElementById("output")!.innerHTML = `
       <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
-        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${data.bid}</div>
+        <div style="font-size: 56px; font-weight: bold;">${title}: ${data.bid}</div>
         ${renderPartnerBidExplanationLine()}
-        <div style="margin-top: 8px;">${data.explanation}</div>
+        <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
         <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
         ${guidanceHtml}
       </div>
     `;
   } catch (err) {
-    console.error("Recommendation error:", err);
-
-    const advice = recommendBidFromAuction(selectedHand, auction);
+    console.error("Ask AI error:", err);
+    const message = err instanceof Error && err.message
+      ? err.message
+      : "AI request failed.";
     document.getElementById("output")!.innerHTML = `
       <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
-        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${advice.recommendedBid}</div>
         ${renderPartnerBidExplanationLine()}
-        <div style="margin-top: 8px;">${advice.explanation}</div>
-        <div style="margin-top: 10px; font-size: 28px;">AI conventions unavailable, fallback to local bid-rebid engine.</div>
+        <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
+        <div style="margin-top: 10px; font-size: 28px;">${message}</div>
+        <div style="margin-top: 8px; font-size: 28px;"><b>Try Ask AI again</b> in a moment.</div>
       </div>
     `;
   } finally {
@@ -1785,6 +1944,9 @@ document.body.innerHTML = `
     
     <button onclick="recommend()" style="background:#ffeb3b; color:#000; font-weight:bold;">Advice Bid</button>
   </div>
+  <div style="margin-top:12px;">
+    <button onclick="askAI()" style="background:#ffeb3b; color:#000; font-weight:bold;">Ask AI</button>
+  </div>
 
 </div>
 
@@ -1866,6 +2028,7 @@ document.body.innerHTML = `
 (window as any).resetHand = resetHand;
 (window as any).resetAuction = resetAuction;
 (window as any).recommend = recommend;
+(window as any).askAI = askAI;
 //(window as any).startCamera = startCamera;
 (window as any).captureFrame = captureFrame;
 (window as any).openCamera = openCamera;
