@@ -98,7 +98,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
       return [];
     };
 
-    const runVisionPass = async ({ model, instruction }) => {
+    const runVisionPass = async ({ model, instruction, detail = "high" }) => {
       const response = await openai.chat.completions.create({
         model,
         temperature: 0,
@@ -131,6 +131,7 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
                 type: "image_url",
                 image_url: {
                   url: base64,
+                  detail,
                 },
               },
             ],
@@ -144,38 +145,70 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
 
     const attempts = [];
 
-    attempts.push(await runVisionPass({
-      model: "gpt-4o",
-      instruction: [
-        "Read this bridge hand photo and return exactly visible cards.",
-        "Output strict JSON object: {\"cards\":[\"AS\",\"KH\",\"QD\"]}",
-        "Use ranks A,K,Q,J,T,9..2 and suits S,H,D,C.",
-        "No duplicate cards. No explanations.",
-      ].join(" "),
-    }));
-
-    if (attempts[0].length !== 13) {
-      attempts.push(await runVisionPass({
+    const plannedPasses = [
+      {
         model: "gpt-4o",
+        detail: "high",
         instruction: [
-          "This is a fanned bridge hand. Detect exactly 13 cards if possible.",
-          "Carefully inspect partially visible top-left corners.",
-          "If uncertain, prefer cards that are clearly visible.",
-          "Return strict JSON object: {\"cards\":[...]} only.",
+          "Read this bridge hand photo and return cards from visible corners.",
+          "Output strict JSON object only: {\"cards\":[\"AS\",\"KH\",\"QD\"]}",
+          "Use ranks A,K,Q,J,T,9..2 and suits S,H,D,C.",
+          "Detect exactly 13 cards when possible. No explanations.",
         ].join(" "),
-      }));
+      },
+      {
+        model: "gpt-4o",
+        detail: "high",
+        instruction: [
+          "This is a fanned bridge hand. Focus on top-left rank/suit indices of each card.",
+          "Avoid duplicates. Keep only confidently visible cards.",
+          "Return strict JSON object only: {\"cards\":[...]}.",
+        ].join(" "),
+      },
+      {
+        model: "gpt-4.1",
+        detail: "high",
+        instruction: [
+          "Detect cards from this bridge hand image using index symbols and partial corners.",
+          "Use only valid card tokens like AS, KH, TD.",
+          "Return strict JSON object only: {\"cards\":[...]}.",
+        ].join(" "),
+      },
+      {
+        model: "gpt-4.1-mini",
+        detail: "high",
+        instruction: [
+          "Fallback pass: detect as many valid cards as possible from this bridge hand image.",
+          "Return strict JSON object only: {\"cards\":[...]}.",
+        ].join(" "),
+      },
+    ];
+
+    for (const pass of plannedPasses) {
+      try {
+        const result = await runVisionPass(pass);
+        attempts.push(result);
+        if (result.length === 13) break;
+      } catch (scanErr) {
+        console.warn(`Vision pass failed for ${pass.model}:`, scanErr?.message || scanErr);
+      }
     }
 
-    if (!attempts.some((cards) => cards.length === 13)) {
-      attempts.push(await runVisionPass({
-        model: "gpt-4.1-mini",
-        instruction: [
-          "Detect cards from this bridge hand image.",
-          "Return strict JSON object: {\"cards\":[...]}.",
-          "Use only valid card tokens like AS, KH, TD.",
-        ].join(" "),
-      }));
-    }
+    const mergeByConsensus = (attemptSets) => {
+      const voteMap = new Map();
+
+      for (const set of attemptSets) {
+        const weight = set.length === 13 ? 2 : 1;
+        for (const card of set) {
+          voteMap.set(card, (voteMap.get(card) || 0) + weight);
+        }
+      }
+
+      return [...voteMap.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([card]) => card)
+        .slice(0, 13);
+    };
 
     const scoreCards = (cards) => {
       const validCountScore = cards.length;
@@ -183,9 +216,15 @@ app.post("/analyze-cards", upload.single("image"), async (req, res) => {
       return thirteenBonus + validCountScore;
     };
 
-    const cards = attempts
+    const bestSingleAttempt = attempts
       .slice()
       .sort((a, b) => scoreCards(b) - scoreCards(a))[0] || [];
+
+    const consensusCards = mergeByConsensus(attempts);
+
+    const cards = consensusCards.length >= bestSingleAttempt.length
+      ? consensusCards
+      : bestSingleAttempt;
 
     if (cards.length !== 13) {
       console.warn(`Card scan did not reach 13 cards. Best attempt count: ${cards.length}`);

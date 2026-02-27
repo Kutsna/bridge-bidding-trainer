@@ -1265,8 +1265,6 @@ function renderHand(hand: HandItem[]) {
     <div style="font-size:160%;">
       ${cardCount < 13 ? `<b>Cards:</b> ${cardCount}/13` : ""}
     </div>
-
-    <button onclick="resetHand()">Clear Hand</button>
   `;
 }
 
@@ -1770,6 +1768,84 @@ function resetHand() {
   renderUI();
 }
 
+function saveHand() {
+  if (selectedHand.length === 0) {
+    alert("No cards to save.");
+    return;
+  }
+
+  const pad2 = (value: number) => String(value).padStart(2, "0");
+  const now = new Date();
+  const fileStamp = `${pad2(now.getDate())}.${pad2(now.getMonth() + 1)}.${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+
+  const ordered = sortHandHighToLow([...selectedHand]).map((card) => `${card.rank}${card.suit}`);
+  const grouped = (["S", "H", "D", "C"] as const)
+    .map((suit) => ordered.filter((card) => card.endsWith(suit)))
+    .filter((cards) => cards.length > 0);
+
+  const cardLines = grouped
+    .map((cards, index) => `    ${cards.map((card) => `"${card}"`).join(", ")}${index < grouped.length - 1 ? "," : ""}`)
+    .join("\n");
+
+  const payload = `{
+  "cards": [
+${cardLines}
+  ]
+}\n`;
+
+  const blob = new Blob([payload], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `bbt-hand-${fileStamp}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function triggerImportHand() {
+  const input = document.getElementById("importHandInput") as HTMLInputElement | null;
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+async function importHandFromFile(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const rawCards = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.cards)
+        ? parsed.cards
+        : null;
+
+    if (!rawCards) {
+      throw new Error("Invalid hand file format");
+    }
+
+    const normalizedCards = normalizeDetectedCardTokens(
+      rawCards.map((card: unknown) => String(card ?? "")),
+    );
+
+    if (normalizedCards.length !== 13) {
+      throw new Error("Imported hand must contain exactly 13 valid cards");
+    }
+
+    selectedHand = sortHandHighToLow(normalizedCards);
+    renderUI();
+  } catch (err: any) {
+    alert(err?.message || "Failed to import hand");
+  }
+}
+
 function resetAuction() {
   auction = [];
   latestPartnerBidExplanation = "";
@@ -2212,6 +2288,12 @@ document.body.innerHTML = `
     </label>
   </div>
     <div id="bidButtons" style="margin-top:12px;"></div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button onclick="resetHand()" style="margin-right:10px;">Clear Hand</button>
+      <button onclick="saveHand()" style="margin-right:10px;">Save Hand</button>
+      <button onclick="triggerImportHand()">Import Hand</button>
+    </div>
     
     
   </div>
@@ -2232,6 +2314,15 @@ document.body.innerHTML = `
 
 
 
+<input
+  id="importHandInput"
+  type="file"
+  accept="application/json"
+  style="display:none;"
+  onchange="importHandFromFile(event)"
+/>
+
+
 <div id="output"></div>
 </div>
 `;
@@ -2240,6 +2331,9 @@ document.body.innerHTML = `
 (window as any).addBid = addBid;
 (window as any).undoBid = undoBid;
 (window as any).resetHand = resetHand;
+(window as any).saveHand = saveHand;
+(window as any).triggerImportHand = triggerImportHand;
+(window as any).importHandFromFile = importHandFromFile;
 (window as any).resetAuction = resetAuction;
 (window as any).recommend = recommend;
 (window as any).askAI = askAI;
