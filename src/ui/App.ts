@@ -247,7 +247,7 @@ function startAiLoadingAnimation() {
 
 function renderPartnerBidExplanationLine() {
   if (!latestPartnerBidExplanation) return "";
-  return `<div id="partnerBidExplanation" style="margin-top: 8px; font-size: 28px; color: #fff4a3;"><b>Partner bid:</b> ${latestPartnerBidExplanation}</div>`;
+  return `<div id="partnerBidExplanation" style="margin-top: 8px; font-size: 36px; color: #fff4a3;"><b>Partner bid:</b> ${latestPartnerBidExplanation}</div>`;
 }
 
 function refreshPartnerBidExplanationInOutput() {
@@ -1724,8 +1724,8 @@ function addBid(bid: string) {
         const outputEl = document.getElementById("output");
         if (outputEl && !outputEl.innerHTML.trim() && latestPartnerBidExplanation) {
           outputEl.innerHTML = `
-            <div style="margin-top: 10px; font-size: 30px; line-height: 1.35;">
-              <div style="font-size: 36px; font-weight: bold;">Partner Bid Definition</div>
+            <div style="margin-top: 10px; font-size: 39px; line-height: 1.35;">
+              <div style="font-size: 47px; font-weight: bold;">Partner Bid Definition</div>
               ${renderPartnerBidExplanationLine()}
             </div>
           `;
@@ -1895,8 +1895,8 @@ async function recommend() {
         <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
           ${renderPartnerBidExplanationLine()}
           <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
-          <div style="margin-top: 10px; font-size: 28px;">${noMatchMessage}</div>
-          <div style="margin-top: 8px; font-size: 28px;"><b>Click Ask AI</b> to get AI advice.</div>
+          <div style="margin-top: 10px; font-size: 36px;">${noMatchMessage}</div>
+          <div style="margin-top: 8px; font-size: 36px;"><b>Click Ask AI</b> to get AI advice.</div>
         </div>
       `;
       return;
@@ -1915,35 +1915,45 @@ async function recommend() {
       : "None";
 
     const guidanceHtml = conventionGuidance.length
-      ? `<div style="margin-top:10px; font-size:26px; text-align:left; display:inline-block; max-width:1100px;">
+      ? `<div style="margin-top:10px; font-size:34px; text-align:left; display:inline-block; max-width:1100px;">
           ${conventionGuidance
-            .map((c: any) => `
+            .map((c: any) => {
+              const possibleCalls = Array.isArray(c?.possibleCalls) ? c.possibleCalls : [];
+              const possibleCallsHtml = possibleCalls.length
+                ? `<div style="margin-top:6px;"><b>All possible answers:</b> ${possibleCalls
+                    .map((option: any) => `${option?.bid || "?"}${option?.description ? ` (${option.description})` : ""}`)
+                    .join(" | ")}</div>`
+                : "";
+
+              return `
               <div style="margin-bottom:8px;">
                 <b>${c.name}:</b> when ${c.whenToUse}; why now: ${c.whyUsedNow}
+                ${possibleCallsHtml}
               </div>
-            `)
+            `;
+            })
             .join("")}
         </div>`
       : "";
 
     document.getElementById("output")!.innerHTML = `
-      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
-        <div style="font-size: 56px; font-weight: bold;">Advised bid: ${data.bid}</div>
+      <div style="margin-top: 10px; font-size: 42px; line-height: 1.35;">
+        <div style="font-size: 73px; font-weight: bold;">Advised bid: ${data.bid}</div>
         ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
-        <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
+        <div style="margin-top: 10px; font-size: 36px;"><b>Applied conventions:</b> ${conventionList}</div>
         ${guidanceHtml}
-        <div style="margin-top: 10px; font-size: 28px;">Local SAYC rule engine result.</div>
+        <div style="margin-top: 10px; font-size: 36px;">Local SAYC rule engine result.</div>
       </div>
     `;
   } catch (err) {
     console.error("Recommend route error:", err);
     document.getElementById("output")!.innerHTML = `
-      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+      <div style="margin-top: 10px; font-size: 42px; line-height: 1.35;">
         ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
-        <div style="margin-top: 10px; font-size: 28px;">Local advice request failed.</div>
-        <div style="margin-top: 8px; font-size: 28px;"><b>Click Ask AI</b> to request AI advice.</div>
+        <div style="margin-top: 10px; font-size: 36px;">Local advice request failed.</div>
+        <div style="margin-top: 8px; font-size: 36px;"><b>Click Ask AI</b> to request AI advice.</div>
       </div>
     `;
   }
@@ -1959,8 +1969,8 @@ async function askAI() {
     const outputEl = document.getElementById("output");
     if (outputEl) {
       outputEl.innerHTML = `
-        <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
-          <div id="aiLoadingText" style="font-size: 42px; font-style: italic; color: yellow; margin-bottom: 8px;">
+        <div style="margin-top: 10px; font-size: 42px; line-height: 1.35;">
+          <div id="aiLoadingText" style="font-size: 55px; font-style: italic; color: yellow; margin-bottom: 8px;">
             Getting data from AI
           </div>
         </div>
@@ -2012,13 +2022,23 @@ async function askAI() {
       : "None";
 
     const guidanceHtml = conventionGuidance.length
-      ? `<div style="margin-top:10px; font-size:26px; text-align:left; display:inline-block; max-width:1100px;">
+      ? `<div style="margin-top:10px; font-size:34px; text-align:left; display:inline-block; max-width:1100px;">
           ${conventionGuidance
-            .map((c: any) => `
+            .map((c: any) => {
+              const possibleCalls = Array.isArray(c?.possibleCalls) ? c.possibleCalls : [];
+              const possibleCallsHtml = possibleCalls.length
+                ? `<div style="margin-top:6px;"><b>All possible answers:</b> ${possibleCalls
+                    .map((option: any) => `${option?.bid || "?"}${option?.description ? ` (${option.description})` : ""}`)
+                    .join(" | ")}</div>`
+                : "";
+
+              return `
               <div style="margin-bottom:8px;">
                 <b>${c.name}:</b> when ${c.whenToUse}; why now: ${c.whyUsedNow}
+                ${possibleCallsHtml}
               </div>
-            `)
+            `;
+            })
             .join("")}
         </div>`
       : "";
@@ -2026,11 +2046,11 @@ async function askAI() {
     const title = data?.source === "ai" ? "AI Advised Bid" : "Advised bid";
 
     document.getElementById("output")!.innerHTML = `
-      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
-        <div style="font-size: 56px; font-weight: bold;">${title}: ${data.bid}</div>
+      <div style="margin-top: 10px; font-size: 42px; line-height: 1.35;">
+        <div style="font-size: 73px; font-weight: bold;">${title}: ${data.bid}</div>
         ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
-        <div style="margin-top: 10px; font-size: 28px;"><b>Applied conventions:</b> ${conventionList}</div>
+        <div style="margin-top: 10px; font-size: 36px;"><b>Applied conventions:</b> ${conventionList}</div>
         ${guidanceHtml}
       </div>
     `;
@@ -2040,11 +2060,11 @@ async function askAI() {
       ? err.message
       : "AI request failed.";
     document.getElementById("output")!.innerHTML = `
-      <div style="margin-top: 10px; font-size: 32px; line-height: 1.35;">
+      <div style="margin-top: 10px; font-size: 42px; line-height: 1.35;">
         ${renderPartnerBidExplanationLine()}
         <div style="margin-top: 8px;">${withHcpPrefix(getBidRebidCoupleExplanation())}</div>
-        <div style="margin-top: 10px; font-size: 28px;">${message}</div>
-        <div style="margin-top: 8px; font-size: 28px;"><b>Try Ask AI again</b> in a moment.</div>
+        <div style="margin-top: 10px; font-size: 36px;">${message}</div>
+        <div style="margin-top: 8px; font-size: 36px;"><b>Try Ask AI again</b> in a moment.</div>
       </div>
     `;
   } finally {
@@ -2292,7 +2312,7 @@ document.body.innerHTML = `
     <div style="margin-top:12px; text-align:right;">
       <button onclick="resetHand()" style="margin-right:10px;">Clear Hand</button>
       <button onclick="saveHand()" style="margin-right:10px;">Save Hand</button>
-      <button onclick="triggerImportHand()">Import Hand</button>
+      <button onclick="triggerImportHand()">Load Hand</button>
     </div>
     
     

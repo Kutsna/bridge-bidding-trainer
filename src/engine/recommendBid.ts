@@ -127,6 +127,20 @@ function mapResponderFirstAnswerToRebid(
       return `2${responderMajor}`;
     }
 
+    const isMajorVsMajorSequence =
+      (opening === "1H" && responderBid === "1S") ||
+      (opening === "1S" && responderBid === "1H");
+
+    if (isMajorVsMajorSequence) {
+      const openerMajor = opening.slice(-1) as "H" | "S";
+      const openerMajorLength = facts.suitLengths[openerMajor] ?? 0;
+      const hasOnlyFiveCardMajor = openerMajorLength < 6;
+
+      if (hasOnlyFiveCardMajor && facts.hcp >= 12 && facts.hcp <= 15) {
+        return "1NT";
+      }
+    }
+
     return matrix.rebidAfterMajor;
   }
   if (responderBid === "1NT") {

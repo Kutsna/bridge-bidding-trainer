@@ -484,11 +484,18 @@ function entryMatchesRule({
   entry,
   hcp,
   distribution,
+  hand,
   openingBid,
   supportSuit,
 }) {
   if (entry.minHCP !== undefined && hcp < entry.minHCP) return false;
   if (entry.maxHCP !== undefined && hcp > entry.maxHCP) return false;
+
+  if (entry.minAces !== undefined || entry.maxAces !== undefined) {
+    const aces = countAces(hand || []);
+    if (entry.minAces !== undefined && aces < entry.minAces) return false;
+    if (entry.maxAces !== undefined && aces > entry.maxAces) return false;
+  }
 
   const proposedSuit = bidSuit(entry.bid);
 
@@ -544,27 +551,170 @@ function entryMatchesRule({
   return true;
 }
 
-function buildRuleAdvice({ interpretedAuction, chosenBid, entry, systemConfig }) {
+function buildRuleAdvice({
+  interpretedAuction,
+  chosenBid,
+  entry,
+  systemConfig,
+  conventionContinuations = [],
+  conventionSequenceKey = null,
+}) {
   const appliedConventions = entry.convention ? [entry.convention] : [];
-  const conventionDescription = entry.convention
-    ? (systemConfig?.conventions?.[entry.convention] || "System convention")
-    : "Natural system rule";
+  const conventionGuidance = entry.convention
+    ? [
+        buildConventionGuidanceItem({
+          systemConfig,
+          conventionName: entry.convention,
+          whyUsedNow: entry.description || `Rule conditions match for ${chosenBid}.`,
+          preferredSequenceKey: conventionSequenceKey,
+          initialPossibleCalls: conventionContinuations,
+        }),
+      ]
+    : [];
 
   return {
     auctionAnalysis: interpretedAuction.map((a) => ({ seat: a.seat, bid: a.bid, meaning: a.meaning })),
     appliedConventions,
-    conventionGuidance: entry.convention
-      ? [
-          {
-            name: entry.convention,
-            whenToUse: conventionDescription,
-            whyUsedNow: entry.description || `Rule conditions match for ${chosenBid}.`,
-          },
-        ]
-      : [],
+    conventionGuidance,
     bid: chosenBid,
     explanation: entry.description || `System rule match: bid ${chosenBid}.`,
   };
+}
+
+function sortConventionCalls(calls) {
+  return calls.sort((a, b) => {
+    if (isContractCall(a.bid) && isContractCall(b.bid)) {
+      return contractOrderValue(a.bid) - contractOrderValue(b.bid);
+    }
+    return String(a.bid).localeCompare(String(b.bid));
+  });
+}
+
+function summarizeConventionRule(rule = {}) {
+  const details = [];
+  const hcpText = formatHcpRange(rule);
+  if (hcpText) details.push(hcpText);
+  if (rule.description) details.push(rule.description);
+  if (rule.transfersTo) details.push(`transfer to ${rule.transfersTo}`);
+  if (rule.waiting) details.push("waiting");
+  if (rule.forcingToGame) details.push("game forcing");
+  else if (rule.forcing) details.push("forcing");
+  else if (rule.invitational) details.push("invitational");
+  return details.join(" — ") || "Convention action";
+}
+
+function collectConventionContinuationsBySequence({ systemConfig, sequenceKey, conventionName }) {
+  const rebidRules = systemConfig?.rebids?.openerRebids?.[sequenceKey];
+  if (!rebidRules || typeof rebidRules !== "object") return [];
+
+  const continuations = [];
+  for (const [bid, rule] of Object.entries(rebidRules)) {
+    if (!rule || typeof rule !== "object") continue;
+    if (conventionName && String(rule.convention || "") !== String(conventionName)) continue;
+    continuations.push({
+      bid,
+      description: summarizeConventionRule(rule),
+      sequence: sequenceKey,
+    });
+  }
+
+  return sortConventionCalls(continuations);
+}
+
+function collectConventionContinuationsGlobal({ systemConfig, conventionName }) {
+  const results = [];
+
+  const firstResponseByOpening = systemConfig?.responses?.byOpening || {};
+  for (const [openingBid, openingConfig] of Object.entries(firstResponseByOpening)) {
+    const firstResponse = openingConfig?.firstResponse;
+    if (!Array.isArray(firstResponse)) continue;
+    for (const rule of firstResponse) {
+      if (!rule || typeof rule !== "object") continue;
+      if (String(rule.convention || "") !== String(conventionName)) continue;
+      if (!rule.bid) continue;
+      results.push({
+        bid: String(rule.bid),
+        description: summarizeConventionRule(rule),
+        sequence: `${openingBid} (first response)`,
+      });
+    }
+  }
+
+  const openerRebids = systemConfig?.rebids?.openerRebids || {};
+  for (const [sequenceKey, sequenceRules] of Object.entries(openerRebids)) {
+    if (!sequenceRules || typeof sequenceRules !== "object") continue;
+    for (const [rebid, rule] of Object.entries(sequenceRules)) {
+      if (!rule || typeof rule !== "object") continue;
+      if (String(rule.convention || "") !== String(conventionName)) continue;
+      results.push({
+        bid: String(rebid),
+        description: summarizeConventionRule(rule),
+        sequence: sequenceKey,
+      });
+    }
+  }
+
+  const dedup = new Map();
+  for (const item of sortConventionCalls(results)) {
+    const key = `${item.sequence || ""}|${item.bid}|${item.description}`;
+    if (!dedup.has(key)) dedup.set(key, item);
+  }
+
+  return Array.from(dedup.values()).slice(0, 14);
+}
+
+function collectConventionContinuations({
+  systemConfig,
+  sequenceKey,
+  conventionName,
+  includeGlobalFallback = true,
+}) {
+  const bySequence = sequenceKey
+    ? collectConventionContinuationsBySequence({ systemConfig, sequenceKey, conventionName })
+    : [];
+
+  if (bySequence.length > 0 || !includeGlobalFallback) return bySequence;
+  return collectConventionContinuationsGlobal({ systemConfig, conventionName });
+}
+
+function buildConventionGuidanceItem({
+  systemConfig,
+  conventionName,
+  whyUsedNow,
+  preferredSequenceKey = null,
+  initialPossibleCalls = [],
+}) {
+  const whenToUse = systemConfig?.conventions?.[conventionName] || "System convention";
+  const possibleCalls = Array.isArray(initialPossibleCalls) && initialPossibleCalls.length > 0
+    ? initialPossibleCalls
+    : collectConventionContinuations({
+        systemConfig,
+        sequenceKey: preferredSequenceKey,
+        conventionName,
+        includeGlobalFallback: true,
+      });
+
+  return {
+    name: conventionName,
+    whenToUse,
+    whyUsedNow,
+    possibleCalls,
+  };
+}
+
+function deriveConventionSequenceKey({ auction, dealer, handSeat = "S" }) {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const partnerSeat = partnerOf(handSeat);
+
+  const ourOpening = entries.find((entry) => entry.seat === handSeat && isContractBid(entry.bid));
+  if (!ourOpening) return null;
+
+  const partnerResponse = entries.find(
+    (entry) => entry.index > ourOpening.index && entry.seat === partnerSeat && isContractBid(entry.bid),
+  );
+
+  if (!partnerResponse) return null;
+  return `${ourOpening.bid}-${partnerResponse.bid}`;
 }
 
 function minorSuitStrength(hand, targetSuit) {
@@ -609,6 +759,55 @@ function formatHcpRange(rule) {
   if (rule.minHCP !== undefined) return `${rule.minHCP}+ HCP`;
   if (rule.maxHCP !== undefined) return `up to ${rule.maxHCP} HCP`;
   return null;
+}
+
+function isFourthSuitForcingContext({ auction, dealer, handSeat = "S", candidateBid }) {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const partnerSeat = partnerOf(handSeat);
+  const partnershipContracts = entries.filter(
+    (entry) =>
+      (entry.seat === handSeat || entry.seat === partnerSeat) &&
+      isContractBid(normalizeBidText(entry.bid)),
+  );
+
+  if (partnershipContracts.length < 3) return false;
+
+  const firstPartnershipContract = partnershipContracts[0];
+  if (!firstPartnershipContract || firstPartnershipContract.seat !== partnerSeat) {
+    return false;
+  }
+
+  const ourContractsSoFar = partnershipContracts.filter((entry) => entry.seat === handSeat);
+  if (ourContractsSoFar.length !== 1) return false;
+
+  const firstThree = partnershipContracts.slice(0, 3);
+  if (firstThree[firstThree.length - 1]?.seat !== partnerSeat) return false;
+
+  const firstThreeSuits = firstThree.map((entry) => bidSuit(entry.bid));
+  if (firstThreeSuits.some((suit) => !suit || suit === "NT")) return false;
+
+  const uniqueSuits = new Set(firstThreeSuits);
+  if (uniqueSuits.size !== 3) return false;
+
+  const candidateSuit = bidSuit(candidateBid);
+  if (!candidateSuit || candidateSuit === "NT") return false;
+
+  return !uniqueSuits.has(candidateSuit);
+}
+
+function isConventionValidForContext({ conventionName, auction, dealer, handSeat, bid }) {
+  const normalized = String(conventionName || "").trim().toLowerCase();
+
+  if (normalized === "fourth suit forcing") {
+    return isFourthSuitForcingContext({
+      auction,
+      dealer,
+      handSeat,
+      candidateBid: bid,
+    });
+  }
+
+  return true;
 }
 
 function describeResponderRule(openingBid, responseBid, systemConfig) {
@@ -690,7 +889,7 @@ function derivePartnershipPriorityBid({
 
     for (const [openingBid, openingRule] of openingEntries) {
       const ruleEntry = { bid: openingBid, ...openingRule };
-      if (entryMatchesRule({ entry: ruleEntry, hcp, distribution, openingBid })) {
+      if (entryMatchesRule({ entry: ruleEntry, hcp, distribution, hand: selectedHand, openingBid })) {
         openingCandidates.push({ openingBid, ruleEntry });
       }
     }
@@ -762,14 +961,26 @@ function derivePartnershipPriorityBid({
         entry: rule,
         hcp,
         distribution,
+        hand: selectedHand,
         openingBid: opening,
         supportSuit: bidSuit(opening),
       })) {
+        const sequenceKey = `${opening}-${rule.bid}`;
+        const conventionContinuations = rule.convention
+          ? collectConventionContinuations({
+              systemConfig,
+              sequenceKey,
+              conventionName: rule.convention,
+            })
+          : [];
+
         return buildRuleAdvice({
           interpretedAuction,
           chosenBid: rule.bid,
           entry: rule,
           systemConfig,
+          conventionContinuations,
+          conventionSequenceKey: sequenceKey,
         });
       }
     }
@@ -784,6 +995,18 @@ function derivePartnershipPriorityBid({
     if (partnerResponse) {
       const sequenceKey = `${openingBid}-${partnerResponse.bid}`;
       const rebidRules = systemConfig?.rebids?.openerRebids?.[sequenceKey];
+      const firstResponseRules = systemConfig?.responses?.byOpening?.[openingBid]?.firstResponse || [];
+      const partnerResponseRule = Array.isArray(firstResponseRules)
+        ? firstResponseRules.find((rule) => normalizeBidText(rule?.bid) === normalizeBidText(partnerResponse.bid))
+        : null;
+      const activeConventionName = partnerResponseRule?.convention || null;
+      const conventionContinuations = activeConventionName
+        ? collectConventionContinuations({
+            systemConfig,
+            sequenceKey,
+            conventionName: activeConventionName,
+          })
+        : [];
 
       if (rebidRules && typeof rebidRules === "object") {
         const candidateMatches = [];
@@ -793,6 +1016,7 @@ function derivePartnershipPriorityBid({
             entry: ruleEntry,
             hcp,
             distribution,
+            hand: selectedHand,
             openingBid,
             supportSuit: bidSuit(partnerResponse.bid),
           })) {
@@ -832,6 +1056,8 @@ function derivePartnershipPriorityBid({
                 chosenBid: chosenSupportRaise.rebid,
                 entry: chosenSupportRaise.ruleEntry,
                 systemConfig,
+                conventionContinuations,
+                conventionSequenceKey: sequenceKey,
               });
             }
           }
@@ -842,6 +1068,8 @@ function derivePartnershipPriorityBid({
             chosenBid: chosenCandidate.rebid,
             entry: chosenCandidate.ruleEntry,
             systemConfig,
+            conventionContinuations,
+            conventionSequenceKey: sequenceKey,
           });
         }
       }
@@ -849,6 +1077,58 @@ function derivePartnershipPriorityBid({
   }
 
   return null;
+}
+
+function getStructuredRebidContext({ auction, dealer, handSeat = "S", hcp, distribution, systemConfig }) {
+  const entries = normalizeAuctionEntries(auction, dealer);
+  const partnerSeat = partnerOf(handSeat);
+  const firstContract = entries.find((entry) => isContractBid(entry.bid));
+  if (!firstContract) return null;
+  if (firstContract.seat !== handSeat) return null;
+
+  const hasCompetition = entries.some(
+    (entry) => entry.index > firstContract.index && entry.seat !== handSeat && entry.seat !== partnerSeat && entry.bid !== "P",
+  );
+  if (hasCompetition) return null;
+
+  const ourNonPassBids = entries.filter((entry) => entry.seat === handSeat && entry.bid !== "P");
+  if (ourNonPassBids.length !== 1) return null;
+
+  const openingBid = ourNonPassBids[0].bid;
+  const partnerResponse = entries.find(
+    (entry) => entry.index > firstContract.index && entry.seat === partnerSeat && entry.bid !== "P" && isContractBid(entry.bid),
+  );
+  if (!partnerResponse) return null;
+
+  const sequenceKey = `${openingBid}-${partnerResponse.bid}`;
+  const rebidRules = systemConfig?.rebids?.openerRebids?.[sequenceKey];
+  if (!rebidRules || typeof rebidRules !== "object") return null;
+
+  return {
+    openingBid,
+    partnerResponseBid: partnerResponse.bid,
+    supportSuit: bidSuit(partnerResponse.bid),
+    hcp,
+    distribution,
+    rebidRules,
+  };
+}
+
+function isAiBidValidForStructuredRebid({ context, bid }) {
+  if (!context) return true;
+  if (!isContractBid(bid)) return true;
+
+  const rule = context.rebidRules?.[bid];
+  if (!rule || typeof rule !== "object") return false;
+
+  const ruleEntry = { bid, ...rule };
+  return entryMatchesRule({
+    entry: ruleEntry,
+    hcp: context.hcp,
+    distribution: context.distribution,
+    openingBid: context.openingBid,
+    supportSuit: context.supportSuit,
+  });
 }
 
 function interpretAuction(auction, dealer, handSeat = "S", systemConfig = null) {
@@ -969,6 +1249,7 @@ app.post("/explain-last-bid", (req, res) => {
     const last = interpreted[interpreted.length - 1];
     const normalizedEntries = normalizeAuctionEntries(auction, dealer);
     const lastEntry = normalizedEntries[normalizedEntries.length - 1];
+    const firstContractEntry = normalizedEntries.find((entry) => isContractBid(normalizeBidText(entry.bid)));
     const effectiveHandSeat = handSeat || "S";
     const partnerSeat = partnerOf(effectiveHandSeat);
 
@@ -1033,7 +1314,12 @@ app.post("/explain-last-bid", (req, res) => {
         }
       }
 
-      if (partnerOpeningEntry && lastEntry.index === partnerOpeningEntry.index) {
+      if (
+        partnerOpeningEntry &&
+        lastEntry.index === partnerOpeningEntry.index &&
+        firstContractEntry &&
+        partnerOpeningEntry.index === firstContractEntry.index
+      ) {
         const openingRule = systemConfig?.openingStructure?.[normalizeBidText(lastEntry.bid)];
         if (openingRule && typeof openingRule === "object") {
           partnerHcpRange = formatHcpRange(openingRule) || partnerHcpRange;
@@ -1377,7 +1663,81 @@ Return STRICT JSON:
       });
     }
 
-    res.json({ source: "ai", ...parsed, bid: parsedBid });
+    const structuredRebidContext = getStructuredRebidContext({
+      auction,
+      dealer,
+      handSeat: handSeat || "S",
+      hcp,
+      distribution,
+      systemConfig,
+    });
+
+    const bidValidForStructuredRebid = isAiBidValidForStructuredRebid({
+      context: structuredRebidContext,
+      bid: parsedBid,
+    });
+
+    if (!bidValidForStructuredRebid && deterministicAdvice) {
+      return res.json({ source: "bbt", ...deterministicAdvice });
+    }
+
+    const rawAppliedConventions = Array.isArray(parsed?.appliedConventions)
+      ? parsed.appliedConventions
+      : [];
+    const validAppliedConventions = rawAppliedConventions.filter((name) =>
+      isConventionValidForContext({
+        conventionName: name,
+        auction,
+        dealer,
+        handSeat: handSeat || "S",
+        bid: parsedBid,
+      }),
+    );
+
+    const rawConventionGuidance = Array.isArray(parsed?.conventionGuidance)
+      ? parsed.conventionGuidance
+      : [];
+    const validConventionGuidance = rawConventionGuidance.filter((item) =>
+      isConventionValidForContext({
+        conventionName: item?.name,
+        auction,
+        dealer,
+        handSeat: handSeat || "S",
+        bid: parsedBid,
+      }),
+    );
+
+    const sequenceKeyForGuidance = deriveConventionSequenceKey({
+      auction,
+      dealer,
+      handSeat: handSeat || "S",
+    });
+
+    const conventionNamesFromModel = [
+      ...validAppliedConventions,
+      ...validConventionGuidance.map((item) => item?.name).filter(Boolean),
+    ];
+    const uniqueConventionNames = Array.from(new Set(conventionNamesFromModel));
+
+    const enrichedConventionGuidance = uniqueConventionNames.map((conventionName) => {
+      const modelGuidance = validConventionGuidance.find((item) => item?.name === conventionName);
+      return buildConventionGuidanceItem({
+        systemConfig,
+        conventionName,
+        whyUsedNow:
+          modelGuidance?.whyUsedNow ||
+          `Convention-selected action for ${parsedBid}.`,
+        preferredSequenceKey: sequenceKeyForGuidance,
+      });
+    });
+
+    res.json({
+      source: "ai",
+      ...parsed,
+      bid: parsedBid,
+      appliedConventions: validAppliedConventions,
+      conventionGuidance: enrichedConventionGuidance,
+    });
 
   } catch (err) {
     console.error("AI ERROR:", err);
